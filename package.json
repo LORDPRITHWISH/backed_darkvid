@@ -4,19 +4,23 @@
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "nodemon": "^3.1.9",
     "prettier": "^3.4.2"
   },
   "scripts": {
-    "start": "bun src/index.ts",
-    "dev": "nodemon src/index.ts",
+    "dev": "bun src/index.ts",
     "tdev": "ts-node src/index.ts"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mongoose": "^8.9.5",
     "morgan": "^1.10.0",
     "winston": "^3.17.0"
   }

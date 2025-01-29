@@ -25,3 +25,13 @@
     "noPropertyAccessFromIndexSignature": false
   }
 }
+// {
+//   "compilerOptions": {
+//     "target": "ES2020",
+//     "module": "CommonJS",
+//     "outDir": "./dist",
+//     "strict": true
+//   },
+//   "include": ["src/**/*"],
+//   "exclude": ["node_modules"]
+// }
