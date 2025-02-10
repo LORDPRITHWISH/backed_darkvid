@@ -38,8 +38,7 @@ const userSchema = new Schema(
     },
     bio: {
       type: String,
-      default: "",
-      required: true,
+      default: "a happy user",
     },
     coverimage: {
       type: String,
@@ -95,7 +94,7 @@ userSchema.methods.generateAccessToken = function () {
   }
   return jwt.sign(
     {
-      _id: this._idstorage / emulated / 0,
+      _id: this._id,
     },
     process.env.REFERESH_TOKEN_SECRET,
     { expiresIn: "1d" }

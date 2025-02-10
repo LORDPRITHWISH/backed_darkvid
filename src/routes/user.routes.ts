@@ -13,6 +13,4 @@ router.route("/register").post(
   registerUser
 );
 
-// router.route("/").get(upload.single('avatar'), healthcheak)
-
 export default router;

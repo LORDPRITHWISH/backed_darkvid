@@ -17,9 +17,9 @@ app.get("/", (req, res) => {
 
 connectDB()
   .then(()=>{
-  app.listen(port, () => {
-  console.log(`Listening on port ${port}...`);
-});
+    app.listen(port, () => {
+      console.log(`Listening on port ${port}...`);
+    });
   })
   .catch((error) => {
     console.error("DB connection error", error);

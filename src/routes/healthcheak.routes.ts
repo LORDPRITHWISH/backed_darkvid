@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { healthcheak } from "../controllers/healthcheak.controllers";
-import { upload } from "../middleware/multer.middleware";
+// import { upload } from "../middleware/multer.middleware";
 
 
 const router = Router();
