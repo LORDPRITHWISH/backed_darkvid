@@ -13,7 +13,7 @@
     "prettier": "^3.4.2"
   },
   "scripts": {
-    "dev": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts ",
     "tdev": "ts-node src/index.ts"
   },
   "peerDependencies": {

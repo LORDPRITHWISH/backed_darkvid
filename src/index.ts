@@ -10,7 +10,7 @@ console.log(Bun.env.PORT);
 const port = process.env.PORT || 4000;
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Hello Worlds!");
 });
 
 

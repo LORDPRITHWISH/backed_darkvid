@@ -72,7 +72,7 @@ userSchema.methods.isPasswordCorrect = async function (password: string) {
   return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateRefreshToken = function () {
+userSchema.methods.generateAccessToken = function () {
   if (!process.env.ACESS_TOKEN_SECRET) {
     throw new Error("ACESS_TOKEN_SECRET is not defined");
   }
@@ -88,7 +88,7 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateRefereshToken = function () {
   if (!process.env.REFERESH_TOKEN_SECRET) {
     throw new Error("REFERESH_TOKEN_SECRET is not defined");
   }

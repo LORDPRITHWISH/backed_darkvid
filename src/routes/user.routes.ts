@@ -13,4 +13,12 @@ router.route("/register").post(
   registerUser
 );
 
+
+
+// router.route("/register").post(
+//   upload.single("profilepic"),
+//   upload.single("coverimage"),
+//   registerUser
+// );
+
 export default router;
