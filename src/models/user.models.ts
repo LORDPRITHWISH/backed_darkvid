@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
+
 const userSchema = new Schema(
   {
     username: {
@@ -69,13 +70,18 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.isPasswordCorrect = async function (password: string) {
+  // console.log("checking password for user", this.username);
+  // console.log("password to check:", password);
   return await bcrypt.compare(password, this.password);
 };
 
 userSchema.methods.generateAccessToken = function () {
-  if (!process.env.ACESS_TOKEN_SECRET) {
-    throw new Error("ACESS_TOKEN_SECRET is not defined");
+  if (!process.env.ACCESS_TOKEN_SECRET) {
+    throw new Error("ACCESS_TOKEN_SECRET is not defined");
   }
+
+  console.log("generating access token for user", this.username);
+
   return jwt.sign(
     {
       _id: this._id,
@@ -83,20 +89,20 @@ userSchema.methods.generateAccessToken = function () {
       username: this.username,
       name: this.name,
     },
-    process.env.ACESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: "1d" }
   );
 };
 
-userSchema.methods.generateRefereshToken = function () {
-  if (!process.env.REFERESH_TOKEN_SECRET) {
-    throw new Error("REFERESH_TOKEN_SECRET is not defined");
+userSchema.methods.generateRefreshToken = function () {
+  if (!process.env.REFRESH_TOKEN_SECRET) {
+    throw new Error("REFRESH_TOKEN_SECRET is not defined");
   }
   return jwt.sign(
     {
       _id: this._id,
     },
-    process.env.REFERESH_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: "1d" }
   );
 };

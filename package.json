@@ -1,5 +1,5 @@
 {
-  "name": "backed_youvid",
+  "name": "backed_darkvid",
   "module": "src/index.ts",
   "type": "module",
   "devDependencies": {
