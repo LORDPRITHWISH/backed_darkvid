@@ -33,7 +33,7 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
 };
 
 const registerUser = asyncHandeler(async (req, res) => {
-  // console.log('lol');
+  console.log('lol');
 
   const { fullname, email, username, password } = req.body;
   // console.log(req);
@@ -117,7 +117,7 @@ const registerUser = asyncHandeler(async (req, res) => {
 const loginUser = asyncHandeler(async (req, res) => {
   // console.log("\nlogin user called");
   // console.log("body :-", req.body);
-  const { email, username, password } = req.body;
+  const { identity, password } = req.body;
 
   // console.log("body :-", req);
 
@@ -125,14 +125,15 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Password is required");
   }
 
-  if (email?.trim() === "" && username.trim() === "") {
+  if (identity.trim() === "") {
     throw new ApiError(400, "Email or username is required");
   }
+
 
   // console.log("provided user", email, username, password);
 
   const user = await User.findOne({
-    $or: [{ email }, { username }],
+    $or: [{ email: identity }, { username: identity }],
   });
 
   if (!user) {
@@ -162,13 +163,15 @@ const loginUser = asyncHandeler(async (req, res) => {
   const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    // sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax" as "none" | "lax",
   };
 
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
+    .cookie("dark", "I am alive", options)
+    
     .json(
       new ApiResponce(200, "User logged in", {
         user: loggedInUser,

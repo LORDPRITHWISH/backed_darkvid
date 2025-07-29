@@ -14,20 +14,25 @@ import {
 import { upload } from "../middleware/multer.middleware";
 import { verifyJwt } from "../middleware/auth.middleware";
 
-
 const router = Router();
 
 // Public routes
-router.route("/login").post(
-  upload.none(),
-  loginUser
-);
+router.route("/login").post(upload.none(), loginUser);
 
-router.route("/register").post(
-  upload.fields([
-    { name: "profilepic", maxCount: 1 },
-    { name: "coverimage", maxCount: 1 },
-  ]),
+router.post(
+  "/register",
+  (req, res, next) => {
+    upload.fields([
+      { name: "profilepic", maxCount: 1 },
+      { name: "coverimage", maxCount: 1 },
+    ])(req, res, (err) => {
+      if (err) {
+        console.error("MULTER ERROR:", err);
+        return res.status(400).json({ message: err.message });
+      }
+      next();
+    });
+  },
   registerUser
 );
 
