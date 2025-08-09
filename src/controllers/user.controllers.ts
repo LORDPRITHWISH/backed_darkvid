@@ -3,7 +3,7 @@ import { User } from "../models/user.models";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
-import { deleteImage, uploadImage } from "../utils/cloudinay";
+import { deleteFile, uploadFile } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
 // import fs from "fs/promises";
 
@@ -66,7 +66,7 @@ const registerUser = asyncHandeler(async (req, res) => {
   let coverimagecl;
 
   try {
-    if (coverimagelocal) coverimagecl = await uploadImage(coverimagelocal);
+    if (coverimagelocal) coverimagecl = await uploadFile(coverimagelocal);
     console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
@@ -74,7 +74,7 @@ const registerUser = asyncHandeler(async (req, res) => {
   }
 
   try {
-    if (profilepiclocal) profilepiccl = await uploadImage(profilepiclocal);
+    if (profilepiclocal) profilepiccl = await uploadFile(profilepiclocal);
     console.log("profilepic uploaded", profilepiccl);
   } catch (error) {
     console.log(error);
@@ -123,10 +123,10 @@ const registerUser = asyncHandeler(async (req, res) => {
       .json(new ApiResponce(201, "User created", createdUser));
   } catch (error) {
     if (profilepiccl) {
-      await deleteImage(profilepiccl.public_id);
+      await deleteFile(profilepiccl.public_id);
     }
     if (coverimagecl) {
-      await deleteImage(coverimagecl.public_id);
+      await deleteFile(coverimagecl.public_id);
     }
     throw new ApiError(500, "User not created so no point keeping the images");
   }
@@ -361,7 +361,7 @@ const updateAvator = asyncHandeler(async (req, res) => {
 
   let profilepiccl;
   try {
-    profilepiccl = await uploadImage(profilepiclocal);
+    profilepiccl = await uploadFile(profilepiclocal);
     console.log("profilepic uploaded", profilepiccl);
   } catch (error) {
     console.log(error);
@@ -385,7 +385,7 @@ const updateAvator = asyncHandeler(async (req, res) => {
   // Delete the old profile picture if it exists
   if (req.user.profilepic) {
     try {
-      await deleteImage(req.user.profilepic);
+      await deleteFile(req.user.profilepic);
     } catch (error) {
       console.error("Error deleting old profile picture:", error);
     }
@@ -405,7 +405,7 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
 
   let coverimagecl;
   try {
-    coverimagecl = await uploadImage(coverimagelocal);
+    coverimagecl = await uploadFile(coverimagelocal);
     console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
@@ -429,7 +429,7 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
   // Delete the old cover image if it exists
   if (req.user.coverimage) {
     try {
-      await deleteImage(req.user.coverimage);
+      await deleteFile(req.user.coverimage);
     } catch (error) {
       console.error("Error deleting old cover image:", error);
     }

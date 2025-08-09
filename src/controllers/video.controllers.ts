@@ -3,7 +3,7 @@ import { asyncHandeler } from "../utils/asyncHandelers";
 import { ApiError } from "../utils/ApiError";
 import { Video } from "../models/video.models";
 // import fs from "fs/promises";
-import { uploadVideo as cloudinaryVidUpload , deleteVideo as CloudinaryVidDelete , uploadImage } from "../utils/cloudinay";
+import { uploadFile , deleteFile } from "../utils/cloudinay";
 
 
 
@@ -24,7 +24,7 @@ const uploadVideo = asyncHandeler(async(req, res) => {
     let videoURL;
 
     try {
-      if (videoFilePath) videoURL = await uploadImage(videoFilePath);
+      if (videoFilePath) videoURL = await uploadFile(videoFilePath);
       console.log("video uploaded", videoURL);
     } catch (error) {
       console.log(error);
@@ -33,45 +33,38 @@ const uploadVideo = asyncHandeler(async(req, res) => {
 
     console.log("Video URL:", videoURL);
  
-      // if (videoFilePath) {
-      //   try {
-      //     await fs.unlink(videoFilePath);
-      //   } catch (err) {
-      //     console.error("Failed to delete local video file:", err);
-      //   }
-      // }
 
     res.status(200).json(new ApiResponce(200, "Video uploaded successfully", { videoURL }));
 
-    // try{
-    //     const video = await Video.create({
-    //       videoURL: videoURL,
-    //       thumbnailURL: "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
-    //       title: req.file.originalname,
-    //       description: "lol",
-    //       tags: ["example", "video"],
-    //       views: 0,
-    //       likes: 0,
-    //       dislikes: 0,
-    //       comments: 0,
-    //       duration: "1000",
-    //       isPublished: true,
-    //       owner: req.user.id,
-    //     });
+    try{
+        const video = await Video.create({
+          videoURL: videoURL,
+          thumbnailURL: "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
+          title: req.file.originalname,
+          description: "lol",
+          tags: ["example", "video"],
+          views: 0,
+          likes: 0,
+          dislikes: 0,
+          comments: 0,
+          duration: "1000",
+          isPublished: true,
+          owner: req.user.id,
+        });
     
-    //     const createdVideo = await Video.findById(video._id)
+        const createdVideo = await Video.findById(video._id)
     
-    //     return res
-    //     .status(200)
-    //     .json(new ApiResponce(200, "Video uploaded successfully", createdVideo));
-    // }
-    // catch (error) {
-    //     // if (videoURL) {
-    //     //   await deleteVideo(videoURL.);
-    //     // }
-    //     console.error("Error uploading video:", error);
-    //     throw new ApiError(500, "Failed to upload video");
-    // }
+        return res
+        .status(200)
+        .json(new ApiResponce(200, "Video uploaded successfully", createdVideo));
+    }
+    catch (error) {
+        if (videoURL) {
+          await deleteFile(videoURL.public_id);
+        }
+        console.error("Error uploading video:", error);
+        throw new ApiError(500, "Failed to upload video");
+    }
 })
 
 const createVideo = asyncHandeler(async (req, res) => {
