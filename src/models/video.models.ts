@@ -1,13 +1,19 @@
 import { model, Schema } from "mongoose";
 import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
+import { nanoid } from "nanoid";
+
 
 const videoSchema = new Schema(
   {
-    videourl: {
+    videoId: {
+      type: String,
+      unique: true,
+    },
+    videoURL: {
       type: String,
       required: true,
     },
-    thumbnailurl: {
+    thumbnailURL: {
       type: String,
       required: true,
     },
@@ -48,11 +54,18 @@ const videoSchema = new Schema(
     owner: {
       type: Schema.Types.ObjectId,
       ref: "User",
-    },
+    }
   },
   { timestamps: true }
 );
 
 videoSchema.plugin(mongooseAggregatePaginate);
+
+videoSchema.pre("save", async function (next) {
+  if (!this.videoId) {
+    this.videoId = nanoid(10);
+  }
+  next();
+});
 
 export const Video = model("Video", videoSchema);

@@ -5,6 +5,7 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { deleteImage, uploadImage } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
+// import fs from "fs/promises";
 
 const genetateAccessAnsRefreshToken = async (userId: string) => {
   try {
@@ -31,20 +32,15 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
     );
   }
 };
-
 const registerUser = asyncHandeler(async (req, res) => {
-  console.log('lol');
-
+  console.log("FILES RECEIVED:", req.files);
+  
   const { fullname, email, username, password } = req.body;
-  // console.log(req);
-  // console.log(req.body);
-  // console.log(req.files);
-  // console.log(req.file);
 
   if (
-    [fullname, email, username, password].some((field) => field?.trim === "")
+    [fullname, email, username, password].some((field) => !field ||field.trim() === "")
   ) {
-    throw new Error("Please fill in all fields");
+    throw new ApiError(400, "Please fill in all fields");
   }
   const existingUser = await User.findOne({
     $or: [{ email }, { username }],
@@ -57,12 +53,25 @@ const registerUser = asyncHandeler(async (req, res) => {
   const profilepiclocal = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
   )?.profilepic?.[0]?.path;
+  
   const coverimagelocal = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
   )?.coverimage?.[0]?.path;
+  
+
+  console.log("profilepiclocal", profilepiclocal);
+  console.log("coverimagelocal", coverimagelocal);
 
   let profilepiccl;
   let coverimagecl;
+
+  try {
+    if (coverimagelocal) coverimagecl = await uploadImage(coverimagelocal);
+    console.log("coverimage uploaded", coverimagecl);
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Cover pic not uploaded");
+  }
 
   try {
     if (profilepiclocal) profilepiccl = await uploadImage(profilepiclocal);
@@ -72,13 +81,23 @@ const registerUser = asyncHandeler(async (req, res) => {
     throw new ApiError(500, "Profile pic not uploaded");
   }
 
-  try {
-    if (coverimagelocal) coverimagecl = await uploadImage(coverimagelocal);
-    console.log("coverimage uploaded", coverimagecl);
-  } catch (error) {
-    console.log(error);
-    throw new ApiError(500, "Cover pic not uploaded");
-  }
+
+
+  // if (profilepiclocal) {
+  //   try {
+  //     await fs.unlink(profilepiclocal);
+  //   } catch (err) {
+  //     console.error("Failed to delete local profile pic:", err);
+  //   }
+  // }
+
+  // if (coverimagelocal) {
+  //   try {
+  //     await fs.unlink(coverimagelocal);
+  //   } catch (err) {
+  //     console.error("Failed to delete local cover image:", err);
+  //   }
+  // }
 
   try {
     const user = await User.create({
@@ -329,6 +348,7 @@ const updateDetails = asyncHandeler(async (req, res) => {
 });
 
 const updateAvator = asyncHandeler(async (req, res) => {
+  
   // const profilepiclocal = (
   //   req.files as { [fieldname: string]: Express.Multer.File[] }
   // )?.profilepic?.[0]?.path;
