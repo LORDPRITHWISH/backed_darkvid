@@ -8,18 +8,13 @@ import { uploadFile , deleteFile } from "../utils/cloudinay";
 
 
 const uploadVideo = asyncHandeler(async(req, res) => {
-    //   res.send("Upload Video");
-    // console.log(req)
     if (!req.file) {
         throw new ApiError(400, "No video file uploaded");
     }
 
-    // console.log("Video file uploaded:", req.file);
     console.log("Video file uploaded: ", req.file.path);
 
     const videoFilePath = req.file?.path;
-
-    // const videoUrl = "http://localhost:3000/videos/"
 
     let videoURL;
 
@@ -33,12 +28,9 @@ const uploadVideo = asyncHandeler(async(req, res) => {
 
     console.log("Video URL:", videoURL);
  
-
-    res.status(200).json(new ApiResponce(200, "Video uploaded successfully", { videoURL }));
-
     try{
         const video = await Video.create({
-          videoURL: videoURL,
+          videoURL: videoURL?.secure_url,
           thumbnailURL: "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
           title: req.file.originalname,
           description: "lol",
@@ -67,16 +59,31 @@ const uploadVideo = asyncHandeler(async(req, res) => {
     }
 })
 
-const createVideo = asyncHandeler(async (req, res) => {
-  return res
-    .status(201)
-    .json(new ApiResponce(201, "Video created successfully", req.body));
-});
-
 const getVideo = asyncHandeler(async (req, res) => {
+  console.log("Fetching video with ID:", req.params.id);
+  const video = await Video.findOne({
+    videoId: req.params.id,
+    isPublished: true,
+  }).select("-__v -updatedAt -owner -isPublished ");
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video fetched successfully", req.params.id));
+    .json(new ApiResponce(200, "Video fetched successfully", video));
+});
+const getVideoDetails = asyncHandeler(async (req, res) => {
+  console.log("Fetching video with ID:", req.params.id);
+  const video = await Video.findOne({
+    videoId: req.params.id,
+    isPublished: true,
+  });
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video fetched successfully", video));
 });
 
 const updateVideo = asyncHandeler(async (req, res) => {
@@ -91,4 +98,16 @@ const deleteVideo = asyncHandeler(async (req, res) => {
     .json(new ApiResponce(200, "Video deleted successfully", req.params.id));
 });
 
-export { createVideo, getVideo, updateVideo, deleteVideo, uploadVideo };
+const SuggestedVideos = asyncHandeler(async (req, res) => {
+
+  Video.find({ isPublished: true })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .then((videos) => {
+      return res
+        .status(200)
+        .json(new ApiResponce(200, "Suggested videos fetched successfully", videos));
+    });
+});
+
+export {  getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos , getVideoDetails };

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { healthcheak } from "../controllers/healthcheak.controllers";
+import { healthcheak } from "../controllers/healthcheak.controller";
 // import { upload } from "../middleware/multer.middleware";
 
 

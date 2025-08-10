@@ -10,7 +10,7 @@ import {
   updateAvator,
   changeCoverImage,
   getUserWatchHistory,
-} from "../controllers/user.controllers";
+} from "../controllers/user.controller";
 import { upload } from "../middleware/multer.middleware";
 import { verifyJwt } from "../middleware/auth.middleware";
 
