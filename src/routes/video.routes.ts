@@ -2,7 +2,7 @@ import { Router } from "express";
 import { upload } from "../middleware/multer.middleware";
 
 import {
-    createVideo, getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos
+    getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos
 } from "../controllers/video.controller";
 import { verifyJwt } from "../middleware/auth.middleware";
 

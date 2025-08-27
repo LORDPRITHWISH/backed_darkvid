@@ -64,7 +64,7 @@ const getVideo = asyncHandeler(async (req, res) => {
   const video = await Video.findOne({
     videoId: req.params.id,
     isPublished: true,
-  }).select("-__v -updatedAt -owner -isPublished ");
+  }).select("-__v -updatedAt -isPublished ");
   if (!video) {
     throw new ApiError(404, "Video not found");
   }
