@@ -5,6 +5,7 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { deleteFile, uploadFile } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
+import { Subscription } from "../models/subscription.models";
 // import fs from "fs/promises";
 
 const genetateAccessAnsRefreshToken = async (userId: string) => {
@@ -451,7 +452,7 @@ const getUserChannel = asyncHandeler(async (req, res) => {
     { $match: { username: username.toLowerCase() } },
     {
       $lookup: {
-        from: "Subscription",
+        from: "subscriptions",
         localField: "_id",
         foreignField: "subscribedTo",
         as: "subscribers",
@@ -459,8 +460,9 @@ const getUserChannel = asyncHandeler(async (req, res) => {
     },
     {
       $lookup: {
-        from: "Subscription",
+        from: "subscriptions",
         localField: "_id",
+        // foreignField: "subscribedTo",
         foreignField: "subscriber",
         as: "subscriptions",
       },
@@ -470,15 +472,15 @@ const getUserChannel = asyncHandeler(async (req, res) => {
         subscriberCount: { $size: "$subscribers" },
         subscriptionCount: { $size: "$subscriptions" },
         isSubscribed: {
-          $cond: {
-            if: {
-              $in: [req.user._id, "$subscribers.subscriber"],
-            },
-            then: true,
-            else: false,
-          },
+          $in: [
+            new mongoose.Types.ObjectId(req.user?._id),
+            { $map: { input: "$subscribers", as: "s", in: "$$s.subscriber" } }
+          ]
         },
-      },
+        isOwner: {
+          $eq: [new mongoose.Types.ObjectId(req.user?._id), "$_id"]
+        }
+      }
     },
     {
       $project: {
@@ -490,6 +492,9 @@ const getUserChannel = asyncHandeler(async (req, res) => {
         subscriberCount: 1,
         subscriptionCount: 1,
         isSubscribed: 1,
+        isOwner: 1,
+        // subscriptions: 1,
+        // subscribers: 1,
       },
     },
   ]);

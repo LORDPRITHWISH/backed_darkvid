@@ -57,6 +57,22 @@ const userSchema = new Schema(
       type: String,
       default: "",
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    subscriberCount: {
+      type: Number,
+      default: 0,
+    }
   },
   { timestamps: true }
 );
@@ -70,8 +86,6 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.isPasswordCorrect = async function (password: string) {
-  // console.log("checking password for user", this.username);
-  // console.log("password to check:", password);
   return await bcrypt.compare(password, this.password);
 };
 

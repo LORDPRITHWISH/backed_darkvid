@@ -2,10 +2,6 @@ import { model, Schema } from "mongoose";
 
 const likeSchemea = new Schema(
   {
-    mood: {
-        type:Boolean,
-        required:true,
-    },
     videoId: {
       type: Schema.Types.ObjectId,
       ref: "Video",
@@ -27,4 +23,4 @@ const likeSchemea = new Schema(
   { timestamps: true }
 );
 
-export const Comment = model("Likr", likeSchemea);
+export const Like = model("Like", likeSchemea);

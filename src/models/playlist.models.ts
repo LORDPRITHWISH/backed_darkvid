@@ -8,6 +8,7 @@ const playlistSchema = new Schema({
     },
     description: {
         type: String,
+        default: "",
     },
     videos: [
         {
@@ -19,6 +20,10 @@ const playlistSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "User",
     },
+    isPublic: {
+        type: Boolean,
+        default: false,
+    }
 }, { timestamps: true });
 
 export const Playlist = model("Playlist", playlistSchema);

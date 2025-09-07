@@ -51,10 +51,6 @@ router
   .route("/cover")
   .patch(verifyJwt, upload.single("coverimage"), changeCoverImage);
 router.route("/history").get(verifyJwt, getUserWatchHistory);
-// router.route("/register").post(
-//   upload.single("profilepic"),
-//   upload.single("coverimage"),
-//   registerUser
-// );
+
 
 export default router;

@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError";
 import { Video } from "../models/video.models";
 // import fs from "fs/promises";
 import { uploadFile , deleteFile } from "../utils/cloudinay";
+import mongoose from "mongoose";
 
 
 
@@ -61,17 +62,80 @@ const uploadVideo = asyncHandeler(async(req, res) => {
 
 const getVideo = asyncHandeler(async (req, res) => {
   console.log("Fetching video with ID:", req.params.id);
-  const video = await Video.findOne({
-    videoId: req.params.id,
-    isPublished: true,
-  }).select("-__v -updatedAt -isPublished ");
-  if (!video) {
+  console.log("Fetching video with ID:", req.body);
+  const video = await Video.aggregate([
+    {
+      $match: {
+        videoId: req.params.id,
+        isPublished: true,
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails"
+      }
+    },
+    {
+      $unwind: "$ownerDetails"
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        let: { ownerId: "$owner" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$subscribedTo", "$$ownerId"] },
+                  { $eq: ["$subscriber", mongoose.Types.ObjectId.createFromHexString(req.user.id)] }
+                ]
+              }
+            }
+          }
+        ],
+        as: "subscriptions"
+      }
+    },
+    {
+      $addFields: {
+        isSubscribed: { $gt: [{ $size: "$subscriptions" }, 0] }
+      }
+    },
+    {
+      $project: {
+        __v: 0,
+        updatedAt: 0,
+        isPublished: 0,
+        subscriptions: 0,
+        owner: 0,
+        "ownerDetails.password": 0,
+        "ownerDetails.__v": 0,
+        "ownerDetails.updatedAt": 0,
+        "ownerDetails.email": 0,
+        "ownerDetails.bio": 0,
+        "ownerDetails.coverimage": 0,
+        "ownerDetails.refereshToken": 0,
+        "ownerDetails.watchHistory": 0,
+        "ownerDetails.createdAt": 0,
+        "ownerDetails.name": 0,
+        "ownerDetails.isAdmin": 0,
+        "ownerDetails.isBanned": 0,
+      }
+    }
+  ]);
+  const result = video[0];
+  if (!result) {
     throw new ApiError(404, "Video not found");
   }
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video fetched successfully", video));
+    .json(new ApiResponce(200, "Video fetched successfully", result));
 });
+
 const getVideoDetails = asyncHandeler(async (req, res) => {
   console.log("Fetching video with ID:", req.params.id);
   const video = await Video.findOne({
@@ -100,14 +164,87 @@ const deleteVideo = asyncHandeler(async (req, res) => {
 
 const SuggestedVideos = asyncHandeler(async (req, res) => {
 
-  Video.find({ isPublished: true })
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .then((videos) => {
-      return res
-        .status(200)
-        .json(new ApiResponce(200, "Suggested videos fetched successfully", videos));
-    });
+  // Video.find({ isPublished: true })
+  //   .sort({ createdAt: -1 })
+  //   .limit(10)
+  //   .then((videos) => {
+
+  //   });
+
+  const videos = await Video.aggregate([
+    { $match: { isPublished: true } },
+    { $sample: { size: 10 } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails"
+      }
+    },
+    {
+      $unwind: "$ownerDetails"
+    },
+    {
+      $project: {
+        __v: 0,
+        updatedAt: 0,
+        isPublished: 0,
+        owner: 0,
+        tags: 0,
+        description: 0,
+        // videoURL: 0,
+        dislikes: 0,
+        comments: 0,
+        // createdAt: 0,
+        
+        "ownerDetails.password": 0,
+        "ownerDetails.__v": 0,
+        "ownerDetails.updatedAt": 0,
+        "ownerDetails.email": 0,
+        "ownerDetails.bio": 0,
+        "ownerDetails.coverimage": 0,
+        "ownerDetails.refereshToken": 0,
+        "ownerDetails.watchHistory": 0,
+        "ownerDetails.createdAt": 0,
+        "ownerDetails.name": 0
+      }
+    }
+    // { $sample: { size: 10 } }
+  ]);
+
+  if (!videos || videos.length === 0) {
+    return res
+      .status(404)
+      .json(new ApiResponce(404, "No suggested videos found", {}));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Suggested videos fetched successfully", videos));
 });
 
-export {  getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos , getVideoDetails };
+const UsersVideos = asyncHandeler(async (req, res) => {
+  const userId = req.params.id;
+  if (!mongoose.isValidObjectId(userId)) {
+    throw new ApiError(400, "Invalid user ID");
+  }
+
+  console.log("Fetching videos for user ID:", userId);
+
+  const videos = await Video.find({ owner: userId }).select({
+    __v: 0,
+    updatedAt: 0,
+    isPublished: 0,
+    owner: 0,
+    tags: 0,
+    description: 0,
+    dislikes: 0,
+    comments: 0
+  });
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User's videos fetched successfully", videos));
+});
+
+export {  getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos , getVideoDetails, UsersVideos };

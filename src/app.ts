@@ -1,10 +1,19 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+
+import { errorHandeler } from "./middleware/error.middleware";
+
+import videoRouter from "./routes/video.routes";
 import healthcheakrouter from "./routes/healthcheak.routes";
 import userrouter from "./routes/user.routes";
-import videoRouter from "./routes/video.routes";
-import { errorHandeler } from "./middleware/error.middleware";
+import commentRouter from "./routes/comment.routes";
+import SubscriptionRoute from "./routes/subscription.routes";
+import actionRoute from "./routes/action.routes";
+import playlistRoute from "./routes/playlist.routes";
+import dashBoardRoute from "./routes/dashboard.routes.js";
+import tweetRouter from "./routes/tweet.routes.js";
+import likeRouter from "./routes/like.routes.js";
 
 const app = express();
 
@@ -24,6 +33,15 @@ app.use(express.static("public"));
 app.use("/api/v1/healthcheak", healthcheakrouter);
 app.use("/api/v1/users", userrouter);
 app.use("/api/v1/video", videoRouter);
+app.use("/api/v1/comment", commentRouter);
+app.use("/api/v1/sub", SubscriptionRoute);
+app.use("/api/v1/action", actionRoute);
+app.use("/api/v1/playlist", playlistRoute);
+app.use("/api/v1/dashboard", dashBoardRoute);
+app.use("/api/v1/tweet", tweetRouter);
+app.use("/api/v1/like", likeRouter);
+
+// Error handling middleware
 
 app.use(errorHandeler);
 

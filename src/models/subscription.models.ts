@@ -11,6 +11,10 @@ const subsriptionSchema = new Schema({
         ref: "User",
         required: true,
     },
+    isPublic: {
+        type: Boolean,
+        default: true,
+    },
 }, { timestamps: true });
 
 export const Subscription = model("Subscription", subsriptionSchema);
