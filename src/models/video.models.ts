@@ -7,19 +7,23 @@ const videoSchema = new Schema(
   {
     videoId: {
       type: String,
-      unique: true,
+      // unique: true,
     },
     videoURL: {
+      type: String,
+      // required: true,
+    },
+    videoKey: {
       type: String,
       required: true,
     },
     thumbnailURL: {
       type: String,
-      required: true,
+      // required: true,
     },
     title: {
       type: String,
-      required: true,
+      // required: true,
     },
     description: {
       type: String,
@@ -45,7 +49,7 @@ const videoSchema = new Schema(
     },
     duration: {
       type: String,
-      required: true,
+      // required: true,
     },
     isPublished: {
       type: Boolean,
@@ -54,7 +58,12 @@ const videoSchema = new Schema(
     owner: {
       type: Schema.Types.ObjectId,
       ref: "User",
-    }
+    },
+    status: {
+      type: String,
+      enum: ["uploading", "ready", "failed"],
+      default: "uploading",
+    },
   },
   { timestamps: true }
 );

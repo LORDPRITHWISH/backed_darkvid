@@ -2,84 +2,161 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { ApiError } from "../utils/ApiError";
 import { Video } from "../models/video.models";
-// import fs from "fs/promises";
-import { uploadFile , deleteFile } from "../utils/cloudinay";
+import { uploadFile, deleteFile } from "../utils/cloudinay";
 import mongoose from "mongoose";
+import { v4 as uuidv4 } from "uuid";
+import { completeMultipartUpload, getPresignedUrl, getVideoUrl, initMultipartUpload } from "../utils/s3Helper";
 
+const uploadVideo = asyncHandeler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "No video file uploaded");
+  }
 
+  console.log("Video file uploaded: ", req.file.path);
 
-const uploadVideo = asyncHandeler(async(req, res) => {
-    if (!req.file) {
-        throw new ApiError(400, "No video file uploaded");
+  const videoFilePath = req.file?.path;
+
+  let videoURL;
+
+  try {
+    if (videoFilePath) videoURL = await uploadFile(videoFilePath);
+    console.log("video uploaded", videoURL);
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Video not uploaded");
+  }
+
+  console.log("Video URL:", videoURL);
+
+  try {
+    const video = await Video.create({
+      videoURL: videoURL?.secure_url,
+      thumbnailURL:
+        "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
+      title: req.file.originalname,
+      description: "lol",
+      tags: ["example", "video"],
+      views: 0,
+      likes: 0,
+      dislikes: 0,
+      comments: 0,
+      duration: "1000",
+      isPublished: true,
+      owner: req.user.id,
+    });
+
+    const createdVideo = await Video.findById(video._id);
+
+    return res
+      .status(200)
+      .json(new ApiResponce(200, "Video uploaded successfully", createdVideo));
+  } catch (error) {
+    if (videoURL) {
+      await deleteFile(videoURL.public_id);
+    }
+    console.error("Error uploading video:", error);
+    throw new ApiError(500, "Failed to upload video");
+  }
+});
+
+const initVideoUpload = asyncHandeler(async (req, res) => {
+  try {
+    const videoId = uuidv4();
+    const key = `videos/${videoId}.mp4`;
+
+    const { uploadId, videoUrl } = await initMultipartUpload(key, "video/mp4");
+
+    const video = await Video.create({
+      videoKey: videoId,
+      videoUrl,
+      status: "uploading",
+      owner: req.user.id,
+    });
+
+    return res.status(200).json(new ApiResponce(200, "Upload initiated", { uploadId, videoId: video.videoId }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(new ApiError(500, "Failed to init upload"));
+  }
+});
+
+const getVideoSignedUrl = asyncHandeler(async (req, res) => {
+  try {
+    const { videoId, uploadId, partNumber } = req.body;
+
+    const video = await Video.findOne({ videoId, owner: req.user.id });
+    if (!video) {
+      return res.status(404).json(new ApiError(404, "Video not found"));
     }
 
-    console.log("Video file uploaded: ", req.file.path);
+    const key = `videos/${video.videoKey}.mp4`;
 
-    const videoFilePath = req.file?.path;
+    const signedUrl = await getPresignedUrl(key, uploadId, partNumber);
 
-    let videoURL;
+    return res.status(200).json(new ApiResponce(200, "Signed URL fetched", { signedUrl }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(new ApiError(500, "Failed to get signed URL"));
+  }
+});
 
-    try {
-      if (videoFilePath) videoURL = await uploadFile(videoFilePath);
-      console.log("video uploaded", videoURL);
-    } catch (error) {
-      console.log(error);
-      throw new ApiError(500, "Video not uploaded");
+export const completeVideoUpload = asyncHandeler(async (req, res) => {
+  try {
+    const { videoId, uploadId, parts } = req.body;
+
+    const video = await Video.findOne({ videoId, owner: req.user.id });
+    if (!video) {
+      return res.status(404).json(new ApiError(404, "Video not found"));
     }
 
-    console.log("Video URL:", videoURL);
- 
-    try{
-        const video = await Video.create({
-          videoURL: videoURL?.secure_url,
-          thumbnailURL: "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
-          title: req.file.originalname,
-          description: "lol",
-          tags: ["example", "video"],
-          views: 0,
-          likes: 0,
-          dislikes: 0,
-          comments: 0,
-          duration: "1000",
-          isPublished: true,
-          owner: req.user.id,
-        });
-    
-        const createdVideo = await Video.findById(video._id)
-    
-        return res
-        .status(200)
-        .json(new ApiResponce(200, "Video uploaded successfully", createdVideo));
-    }
-    catch (error) {
-        if (videoURL) {
-          await deleteFile(videoURL.public_id);
-        }
-        console.error("Error uploading video:", error);
-        throw new ApiError(500, "Failed to upload video");
-    }
-})
+    const key = `videos/${video.videoKey}.mp4`;
+
+    // Complete multipart upload
+
+    const videoUrl = await completeMultipartUpload(key, uploadId, parts);
+
+    return res.status(200).json(new ApiResponce(200, "Upload completed", { videoUrl }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(new ApiError(500, "Failed to complete upload"));
+  }
+});
+
+export const getPlaybackUrl = asyncHandeler(async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    // console.log(videoId);
+    const key = `videos/${videoId}.mp4`;
+    const playbackUrl = await getVideoUrl(key);
+    // const playbackUrl = "lol";
+
+    return res.status(200).json(new ApiResponce(200, "Playback URL fetched", { playbackUrl }));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(new ApiError(500, "Failed to get playback URL"));
+  }
+});
 
 const getVideo = asyncHandeler(async (req, res) => {
-  console.log("Fetching video with ID:", req.params.id);
-  console.log("Fetching video with ID:", req.body);
+  // console.log("Fetching video with ID:", req.params.id);
+  // console.log("Fetching video with ID:", req.body);
   const video = await Video.aggregate([
     {
       $match: {
         videoId: req.params.id,
         isPublished: true,
-      }
+      },
     },
     {
       $lookup: {
         from: "users",
         localField: "owner",
         foreignField: "_id",
-        as: "ownerDetails"
-      }
+        as: "ownerDetails",
+      },
     },
     {
-      $unwind: "$ownerDetails"
+      $unwind: "$ownerDetails",
     },
     {
       $lookup: {
@@ -91,19 +168,24 @@ const getVideo = asyncHandeler(async (req, res) => {
               $expr: {
                 $and: [
                   { $eq: ["$subscribedTo", "$$ownerId"] },
-                  { $eq: ["$subscriber", mongoose.Types.ObjectId.createFromHexString(req.user.id)] }
-                ]
-              }
-            }
-          }
+                  {
+                    $eq: [
+                      "$subscriber",
+                      mongoose.Types.ObjectId.createFromHexString(req.user.id),
+                    ],
+                  },
+                ],
+              },
+            },
+          },
         ],
-        as: "subscriptions"
-      }
+        as: "subscriptions",
+      },
     },
     {
       $addFields: {
-        isSubscribed: { $gt: [{ $size: "$subscriptions" }, 0] }
-      }
+        isSubscribed: { $gt: [{ $size: "$subscriptions" }, 0] },
+      },
     },
     {
       $project: {
@@ -124,16 +206,25 @@ const getVideo = asyncHandeler(async (req, res) => {
         "ownerDetails.name": 0,
         "ownerDetails.isAdmin": 0,
         "ownerDetails.isBanned": 0,
-      }
-    }
+      },
+    },
   ]);
   const result = video[0];
+
+  const playbackUrl = await getVideoUrl(`videos/${result.videoKey}.mp4`);
+  if (result) {
+    (result as any).playbackUrl = playbackUrl;
+  }
+
+  const responce = { ...result, playbackUrl };
+
+  
   if (!result) {
     throw new ApiError(404, "Video not found");
   }
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video fetched successfully", result));
+    .json(new ApiResponce(200, "Video fetched successfully", responce));
 });
 
 const getVideoDetails = asyncHandeler(async (req, res) => {
@@ -163,7 +254,6 @@ const deleteVideo = asyncHandeler(async (req, res) => {
 });
 
 const SuggestedVideos = asyncHandeler(async (req, res) => {
-
   // Video.find({ isPublished: true })
   //   .sort({ createdAt: -1 })
   //   .limit(10)
@@ -179,11 +269,11 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
         from: "users",
         localField: "owner",
         foreignField: "_id",
-        as: "ownerDetails"
-      }
+        as: "ownerDetails",
+      },
     },
     {
-      $unwind: "$ownerDetails"
+      $unwind: "$ownerDetails",
     },
     {
       $project: {
@@ -197,7 +287,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
         dislikes: 0,
         comments: 0,
         // createdAt: 0,
-        
+
         "ownerDetails.password": 0,
         "ownerDetails.__v": 0,
         "ownerDetails.updatedAt": 0,
@@ -207,9 +297,9 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
         "ownerDetails.refereshToken": 0,
         "ownerDetails.watchHistory": 0,
         "ownerDetails.createdAt": 0,
-        "ownerDetails.name": 0
-      }
-    }
+        "ownerDetails.name": 0,
+      },
+    },
     // { $sample: { size: 10 } }
   ]);
 
@@ -221,7 +311,9 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponce(200, "Suggested videos fetched successfully", videos));
+    .json(
+      new ApiResponce(200, "Suggested videos fetched successfully", videos)
+    );
 });
 
 const UsersVideos = asyncHandeler(async (req, res) => {
@@ -240,11 +332,24 @@ const UsersVideos = asyncHandeler(async (req, res) => {
     tags: 0,
     description: 0,
     dislikes: 0,
-    comments: 0
+    comments: 0,
   });
   return res
     .status(200)
     .json(new ApiResponce(200, "User's videos fetched successfully", videos));
 });
 
-export {  getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos , getVideoDetails, UsersVideos };
+
+
+
+export {
+  getVideo,
+  updateVideo,
+  uploadVideo,
+  deleteVideo,
+  SuggestedVideos,
+  getVideoDetails,
+  UsersVideos,
+  initVideoUpload,
+  getVideoSignedUrl
+};
