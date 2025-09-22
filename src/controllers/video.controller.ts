@@ -104,6 +104,11 @@ export const completeVideoUpload = asyncHandeler(async (req, res) => {
   try {
     const { videoId, uploadId, parts } = req.body;
 
+    if (!Array.isArray(parts) || parts.length === 0) {
+      console.log("Invalid parts array:", parts);
+      return res.status(400).json(new ApiError(400, "Parts array is required"));
+    }
+
     const video = await Video.findOne({ videoId, owner: req.user.id });
     if (!video) {
       return res.status(404).json(new ApiError(404, "Video not found"));
