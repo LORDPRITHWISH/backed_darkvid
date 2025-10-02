@@ -9,15 +9,15 @@ const videoSchema = new Schema(
       type: String,
       // unique: true,
     },
-    videoURL: {
-      type: String,
-      // required: true,
-    },
+    // videoURL: {
+    //   type: String,
+    //   // required: true,
+    // },
     videoKey: {
       type: String,
       required: true,
     },
-    thumbnailURL: {
+    thumbnailID: {
       type: String,
       // required: true,
     },

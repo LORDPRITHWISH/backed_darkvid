@@ -5,7 +5,7 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { deleteFile, uploadFile } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
-import { Subscription } from "../models/subscription.models";
+// import { Subscription } from "../models/subscription.models";
 // import fs from "fs/promises";
 
 const genetateAccessAnsRefreshToken = async (userId: string) => {
@@ -33,13 +33,16 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
     );
   }
 };
+
 const registerUser = asyncHandeler(async (req, res) => {
   console.log("FILES RECEIVED:", req.files);
-  
+
   const { fullname, email, username, password } = req.body;
 
   if (
-    [fullname, email, username, password].some((field) => !field ||field.trim() === "")
+    [fullname, email, username, password].some(
+      (field) => !field || field.trim() === ""
+    )
   ) {
     throw new ApiError(400, "Please fill in all fields");
   }
@@ -54,11 +57,10 @@ const registerUser = asyncHandeler(async (req, res) => {
   const profilepiclocal = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
   )?.profilepic?.[0]?.path;
-  
+
   const coverimagelocal = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
   )?.coverimage?.[0]?.path;
-  
 
   console.log("profilepiclocal", profilepiclocal);
   console.log("coverimagelocal", coverimagelocal);
@@ -81,8 +83,6 @@ const registerUser = asyncHandeler(async (req, res) => {
     console.log(error);
     throw new ApiError(500, "Profile pic not uploaded");
   }
-
-
 
   // if (profilepiclocal) {
   //   try {
@@ -149,7 +149,6 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Email or username is required");
   }
 
-
   // console.log("provided user", email, username, password);
 
   const user = await User.findOne({
@@ -183,15 +182,18 @@ const loginUser = asyncHandeler(async (req, res) => {
   const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax" as "none" | "lax",
+    sameSite:
+      process.env.NODE_ENV === "production"
+        ? "none"
+        : ("lax" as "none" | "lax"),
   };
 
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
-    .cookie("dark", "I am alive", options)
-    
+    .cookie("dark", "I_am_alive", options)
+
     .json(
       new ApiResponce(200, "User logged in", {
         user: loggedInUser,
@@ -222,6 +224,9 @@ const logoutUser = asyncHandeler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandeler(async (req, res) => {
+  // console.log("Cookies received:", req.cookies);
+  // console.log("Body received:", req.body);
+
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
 
@@ -234,12 +239,21 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
     if (!refreshTokenSecret) {
       throw new ApiError(500, "Refresh token secret is not defined");
     }
+
+    // Verify the incoming refresh token
+
     const decodedToken = jwt.verify(incomingRefreshToken, refreshTokenSecret);
+
+    console.log("Decoded token:", decodedToken);
 
     if (typeof decodedToken !== "string" && decodedToken?._id) {
       const user = await User.findById(decodedToken._id).select(
-        "-password -refereshToken"
+        // "-password -refereshToken"
+        "-password "
       );
+
+      // console.log("User found:", user);
+
       if (!user) {
         throw new ApiError(404, "Invalid token as user not found");
       }
@@ -271,7 +285,21 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
     } else {
       throw new ApiError(500, "something went wrong with token refresh");
     }
-  } catch (error) {}
+  } catch (error) {
+    console.error("Error during token refresh:", (error as Error)?.message);
+    // throw new ApiError(
+
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new ApiError(401, "Refresh token expired");
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      throw new ApiError(401, "Invalid refresh token");
+    } else {
+      throw new ApiError(
+        500,
+        (error as Error).message || "Internal server error during token refresh"
+      );
+    }
+  }
 });
 
 const changePassword = asyncHandeler(async (req, res) => {
@@ -349,7 +377,6 @@ const updateDetails = asyncHandeler(async (req, res) => {
 });
 
 const updateAvator = asyncHandeler(async (req, res) => {
-  
   // const profilepiclocal = (
   //   req.files as { [fieldname: string]: Express.Multer.File[] }
   // )?.profilepic?.[0]?.path;
@@ -474,13 +501,13 @@ const getUserChannel = asyncHandeler(async (req, res) => {
         isSubscribed: {
           $in: [
             new mongoose.Types.ObjectId(req.user?._id),
-            { $map: { input: "$subscribers", as: "s", in: "$$s.subscriber" } }
-          ]
+            { $map: { input: "$subscribers", as: "s", in: "$$s.subscriber" } },
+          ],
         },
         isOwner: {
-          $eq: [new mongoose.Types.ObjectId(req.user?._id), "$_id"]
-        }
-      }
+          $eq: [new mongoose.Types.ObjectId(req.user?._id), "$_id"],
+        },
+      },
     },
     {
       $project: {

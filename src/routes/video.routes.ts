@@ -2,19 +2,23 @@ import { Router } from "express";
 import { upload } from "../middleware/multer.middleware";
 
 import {
-    getVideo, updateVideo, deleteVideo, uploadVideo, SuggestedVideos,
+    getVideo, updateVideo, deleteVideo, SuggestedVideos,
     UsersVideos,
     initVideoUpload,
     getVideoSignedUrl,
     completeVideoUpload,
     getPlaybackUrl,
+    getVideoDetails,
+    uploadThumbnail,
 } from "../controllers/video.controller";
 import { verifyJwt } from "../middleware/auth.middleware";
 
 const router = Router();
 
 router.get("/", verifyJwt, SuggestedVideos);
-router.post("/uploadCloudinary", upload.single("video"), verifyJwt, uploadVideo);
+// router.post("/uploadCloudinary", upload.single("video"), verifyJwt, uploadVideo);
+
+router.get("/setthumbnail/:videoId", verifyJwt, uploadThumbnail);
 
 // router.get("/upload", verifyJwt, initiateUpload);
 router.get("/upload/initiate", verifyJwt, initVideoUpload);
@@ -28,5 +32,7 @@ router.get("/fetch/:videoId", verifyJwt, getPlaybackUrl);
 router.get("/:id", verifyJwt, getVideo);
 router.delete("/:id", verifyJwt, deleteVideo);
 router.get("/user/:id", verifyJwt, UsersVideos);
+
+router.get("/details/:id", verifyJwt, getVideoDetails);
 
 export default router;

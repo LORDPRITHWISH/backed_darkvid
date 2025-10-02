@@ -1,5 +1,12 @@
 // utils/s3.ts
-import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3 = new S3Client({
@@ -31,7 +38,11 @@ export async function initMultipartUpload(key: string, contentType: string) {
   };
 }
 
-export async function getPresignedUrl(key: string, uploadId: string, partNumber: number) {
+export async function getPresignedUrl(
+  key: string,
+  uploadId: string,
+  partNumber: number
+) {
   const command = new UploadPartCommand({
     Bucket: BUCKET,
     Key: key,
@@ -42,7 +53,11 @@ export async function getPresignedUrl(key: string, uploadId: string, partNumber:
   return await getSignedUrl(s3, command, { expiresIn: 3000 }); // 5 min
 }
 
-export async function completeMultipartUpload(key: string, uploadId: string, parts: { ETag: string; PartNumber: number }[]) {
+export async function completeMultipartUpload(
+  key: string,
+  uploadId: string,
+  parts: { ETag: string; PartNumber: number }[]
+) {
   const command = new CompleteMultipartUploadCommand({
     Bucket: BUCKET,
     Key: key,
@@ -52,6 +67,22 @@ export async function completeMultipartUpload(key: string, uploadId: string, par
 
   const resp = await s3.send(command);
   return resp.Location;
+}
+
+export async function uploadImage(key: string, contentType: string) {
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    // Body: body,
+    ContentType: contentType,
+    // ACL: "public-read",
+  });
+
+  // const resp = await s3.send(command);
+  const resp = await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1 hour
+
+  // console.log("Image upload response:", resp);
+  return resp;
 }
 
 export const getVideoUrl = async (key: string) => {
