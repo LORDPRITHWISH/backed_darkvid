@@ -13,58 +13,6 @@ import {
   uploadImage,
 } from "../utils/s3Helper";
 
-// const uploadVideo = asyncHandeler(async (req, res) => {
-//   if (!req.file) {
-//     throw new ApiError(400, "No video file uploaded");
-//   }
-
-//   console.log("Video file uploaded: ", req.file.path);
-
-//   const videoFilePath = req.file?.path;
-
-//   let videoURL;
-
-//   try {
-//     if (videoFilePath) videoURL = await uploadFile(videoFilePath);
-//     console.log("video uploaded", videoURL);
-//   } catch (error) {
-//     console.log(error);
-//     throw new ApiError(500, "Video not uploaded");
-//   }
-
-//   console.log("Video URL:", videoURL);
-
-//   try {
-//     const video = await Video.create({
-//       videoURL: videoURL?.secure_url,
-//       thumbnailURL:
-//         "https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png",
-//       title: req.file.originalname,
-//       description: "lol",
-//       tags: ["example", "video"],
-//       views: 0,
-//       likes: 0,
-//       dislikes: 0,
-//       comments: 0,
-//       duration: "1000",
-//       isPublished: true,
-//       owner: req.user.id,
-//     });
-
-//     const createdVideo = await Video.findById(video._id);
-
-//     return res
-//       .status(200)
-//       .json(new ApiResponce(200, "Video uploaded successfully", createdVideo));
-//   } catch (error) {
-//     if (videoURL) {
-//       await deleteFile(videoURL.public_id);
-//     }
-//     console.error("Error uploading video:", error);
-//     throw new ApiError(500, "Failed to upload video");
-//   }
-// });
-
 const initVideoUpload = asyncHandeler(async (req, res) => {
   try {
     const videoId = uuidv4();
@@ -79,14 +27,12 @@ const initVideoUpload = asyncHandeler(async (req, res) => {
       owner: req.user.id,
     });
 
-    return res
-      .status(200)
-      .json(
-        new ApiResponce(200, "Upload initiated", {
-          uploadId,
-          videoId: video.videoId,
-        })
-      );
+    return res.status(200).json(
+      new ApiResponce(200, "Upload initiated", {
+        uploadId,
+        videoId: video.videoId,
+      })
+    );
   } catch (err) {
     console.error(err);
     return res.status(500).json(new ApiError(500, "Failed to init upload"));
@@ -119,7 +65,7 @@ export const completeVideoUpload = asyncHandeler(async (req, res) => {
   try {
     const { videoId, uploadId, parts } = req.body;
 
-    console.log("Invalid parts array:", parts);
+    // console.log("Invalid parts array:", parts);
     if (!Array.isArray(parts) || parts.length === 0) {
       return res.status(400).json(new ApiError(400, "Parts array is required"));
     }
@@ -153,7 +99,7 @@ export const uploadThumbnail = asyncHandeler(async (req, res) => {
 
   const uploadURL = await uploadImage(key, "image/jpeg");
 
-  console.log("Thumbnail URL:", uploadURL);
+  // console.log("Thumbnail URL:", uploadURL);
 
   try {
     const video = await Video.findOneAndUpdate(
@@ -168,15 +114,12 @@ export const uploadThumbnail = asyncHandeler(async (req, res) => {
 
     const thumbnailURL = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 
-    return res
-      .status(200)
-      .json(
-        new ApiResponce(200, "Thumbnail uploaded successfully", {
-          video,
-          uploadURL,
-          thumbnailURL,
-        })
-      );
+    return res.status(200).json(
+      new ApiResponce(200, "Thumbnail uploaded successfully", {
+        uploadURL,
+        thumbnailURL,
+      })
+    );
   } catch (error) {
     console.error("Error uploading thumbnail:", error);
     throw new ApiError(500, "Failed to upload thumbnail");
@@ -204,7 +147,7 @@ export const getPlaybackUrl = asyncHandeler(async (req, res) => {
 
 const getVideo = asyncHandeler(async (req, res) => {
   // console.log("Fetching video with ID:", req.params.id);
-  // console.log("Fetching video with ID:", req.body);
+
   const video = await Video.aggregate([
     {
       $match: {
@@ -278,7 +221,15 @@ const getVideo = asyncHandeler(async (req, res) => {
 
   const playbackUrl = await getVideoUrl(`videos/${result.videoKey}.mp4`);
   if (result) {
-    (result as any).playbackUrl = playbackUrl;
+    result.playbackUrl = playbackUrl;
+  }
+
+  if (result.thumbnailID) {
+    result.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${result.thumbnailID}.jpg`;
+  }
+
+  if (result.ownerDetails._id.toString() === req.user.id) {
+    result.isOwner = true;
   }
 
   const responce = { ...result, playbackUrl };
@@ -293,6 +244,7 @@ const getVideo = asyncHandeler(async (req, res) => {
 
 const getVideoDetails = asyncHandeler(async (req, res) => {
   console.log("Fetching video with ID:", req.params.id);
+
   const video = await Video.findOne({
     videoId: req.params.id,
     isPublished: true,
@@ -300,15 +252,61 @@ const getVideoDetails = asyncHandeler(async (req, res) => {
   if (!video) {
     throw new ApiError(404, "Video not found");
   }
+
+  if (video.owner.toString() !== req.user.id) {
+    // console.log("Not the owner");
+    return res
+      .status(403)
+      .json(new ApiError(403, "You are not the owner of this video"));
+  }
+
+  const playbackUrl = await getVideoUrl(`videos/${video.videoKey}.mp4`);
+
+  const thumbnailUrl = video.thumbnailID
+    ? `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`
+    : null;
+
+  const responce = { ...video.toObject(), playbackUrl, thumbnailUrl };
+
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video fetched successfully", video));
+    .json(new ApiResponce(200, "Video fetched successfully", responce));
 });
 
 const updateVideo = asyncHandeler(async (req, res) => {
+
+  const videoId = req.params.videoId;
+  if (!videoId) {
+    return res.status(400).json(new ApiError(400, "Video ID is required"));
+  }
+
+  const video = await Video.findOne({ videoId });
+  if (!video) {
+    return res.status(404).json(new ApiError(404, "Video not found"));
+  }
+
+  if (video.owner.toString() !== req.user.id) {
+    return res
+      .status(403)
+      .json(new ApiError(403, "You are not the owner of this video"));
+  }
+
+  const { title, description, tags, isPublished, duration, privacy } = req.body;
+
+  console.log("Update video payload:", req.body);
+
+  if (title !== undefined) video.title = title;
+  if (description !== undefined) video.description = description;
+  if (tags !== undefined) video.tags = tags;
+  if (isPublished !== undefined) video.isPublished = isPublished;
+  if (duration !== undefined) video.duration = duration;
+  if (privacy !== undefined) video.privacy = privacy;
+
+  await video.save();
+
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video updated successfully", req.params.id));
+    .json(new ApiResponce(200, "Video updated successfully", video));
 });
 
 const deleteVideo = asyncHandeler(async (req, res) => {
@@ -376,7 +374,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
   }
 
   videos.forEach((video) => {
-    if (video.thumbnailID){
+    if (video.thumbnailID) {
       video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
     }
   });

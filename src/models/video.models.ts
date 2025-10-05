@@ -9,10 +9,6 @@ const videoSchema = new Schema(
       type: String,
       // unique: true,
     },
-    // videoURL: {
-    //   type: String,
-    //   // required: true,
-    // },
     videoKey: {
       type: String,
       required: true,
@@ -35,6 +31,11 @@ const videoSchema = new Schema(
       type: Number,
       default: 0,
     },
+    privacy:{
+      type: String,
+      enum: ["public", "private", "unlisted"],
+      default: "public",
+    },
     likes: {
       type: Number,
       default: 0,
@@ -53,7 +54,7 @@ const videoSchema = new Schema(
     },
     isPublished: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     owner: {
       type: Schema.Types.ObjectId,

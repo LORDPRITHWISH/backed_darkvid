@@ -16,16 +16,16 @@ import { verifyJwt } from "../middleware/auth.middleware";
 const router = Router();
 
 router.get("/", verifyJwt, SuggestedVideos);
-// router.post("/uploadCloudinary", upload.single("video"), verifyJwt, uploadVideo);
 
 router.get("/setthumbnail/:videoId", verifyJwt, uploadThumbnail);
 
-// router.get("/upload", verifyJwt, initiateUpload);
+
+
 router.get("/upload/initiate", verifyJwt, initVideoUpload);
 router.post("/upload/getsignlink", verifyJwt, getVideoSignedUrl);
 router.post("/upload/complete", verifyJwt, completeVideoUpload);
 
-router.post("/upload/:id", verifyJwt, updateVideo);
+router.post("/setdata/:videoId", verifyJwt, updateVideo);
 
 router.get("/fetch/:videoId", verifyJwt, getPlaybackUrl);
 // router.put("/edit/:id", verifyJwt, updateVideo);
