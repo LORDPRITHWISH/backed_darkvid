@@ -152,7 +152,7 @@ const getVideo = asyncHandeler(async (req, res) => {
     {
       $match: {
         videoId: req.params.id,
-        isPublished: true,
+        // isPublished: true,
       },
     },
     {
@@ -218,6 +218,10 @@ const getVideo = asyncHandeler(async (req, res) => {
     },
   ]);
   const result = video[0];
+  
+  if (!result) {
+    throw new ApiError(404, "Video not found");
+  }
 
   const playbackUrl = await getVideoUrl(`videos/${result.videoKey}.mp4`);
   if (result) {
@@ -234,9 +238,13 @@ const getVideo = asyncHandeler(async (req, res) => {
 
   const responce = { ...result, playbackUrl };
 
-  if (!result) {
-    throw new ApiError(404, "Video not found");
+
+  if (!result.isPublished && !result.isOwner) {
+    return res
+      .status(403)
+      .json(new ApiError(403, "You are not authorized to view this video"));
   }
+
   return res
     .status(200)
     .json(new ApiResponce(200, "Video fetched successfully", responce));
@@ -247,7 +255,7 @@ const getVideoDetails = asyncHandeler(async (req, res) => {
 
   const video = await Video.findOne({
     videoId: req.params.id,
-    isPublished: true,
+    // isPublished: true,
   });
   if (!video) {
     throw new ApiError(404, "Video not found");
