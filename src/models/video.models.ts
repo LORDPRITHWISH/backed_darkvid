@@ -31,7 +31,7 @@ const videoSchema = new Schema(
       type: Number,
       default: 0,
     },
-    privacy:{
+    privacy: {
       type: String,
       enum: ["public", "private", "unlisted"],
       default: "public",
@@ -62,7 +62,7 @@ const videoSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["uploading", "ready", "failed"],
+      enum: ["uploading", "completed", "failed"],
       default: "uploading",
     },
   },

@@ -31,6 +31,10 @@ const userSchema = new Schema(
       required: true,
       trim: true,
     },
+    channelname: {
+      type: String,
+      trim: true,
+    },
     profilepic: {
       type: String,
       default:

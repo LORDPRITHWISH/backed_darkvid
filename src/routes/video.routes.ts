@@ -10,6 +10,7 @@ import {
     getPlaybackUrl,
     getVideoDetails,
     uploadThumbnail,
+    userStudioVideos,
 } from "../controllers/video.controller";
 import { verifyJwt } from "../middleware/auth.middleware";
 
@@ -29,10 +30,13 @@ router.post("/setdata/:videoId", verifyJwt, updateVideo);
 
 router.get("/fetch/:videoId", verifyJwt, getPlaybackUrl);
 // router.put("/edit/:id", verifyJwt, updateVideo);
+router.get("/studio", verifyJwt, userStudioVideos);
+router.get("/user/:id", verifyJwt, UsersVideos);
+router.get("/details/:id", verifyJwt, getVideoDetails);
+
 router.get("/:id", verifyJwt, getVideo);
 router.delete("/:id", verifyJwt, deleteVideo);
-router.get("/user/:id", verifyJwt, UsersVideos);
 
-router.get("/details/:id", verifyJwt, getVideoDetails);
+
 
 export default router;

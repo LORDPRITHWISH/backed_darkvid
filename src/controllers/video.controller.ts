@@ -81,6 +81,17 @@ export const completeVideoUpload = asyncHandeler(async (req, res) => {
 
     const videoUrl = await completeMultipartUpload(key, uploadId, parts);
 
+    if (!videoUrl) {
+      video.status = "failed";
+      await video.save();
+      return res
+        .status(500)
+        .json(new ApiError(500, "Failed to complete upload"));
+    }
+
+    video.status = "completed";
+    await video.save();
+
     return res
       .status(200)
       .json(new ApiResponce(200, "Upload completed", { videoUrl }));
@@ -417,9 +428,34 @@ const UsersVideos = asyncHandeler(async (req, res) => {
     .json(new ApiResponce(200, "User's videos fetched successfully", videos));
 });
 
+// export const userStudioVideos = asyncHandeler(async (req, res) => {
+const userStudioVideos = asyncHandeler(async (req, res) => {
+
+  // console.log("hello");
+
+  const userId = req.user.id;
+
+  // console.log("Fetching all videos for user ID:", userId);
+
+  const videos = await Video.find({ owner: userId }).select({
+    __v: 0,
+    updatedAt: 0,
+    owner: 0,
+    // tags: 0,
+    description: 0,
+    // dislikes: 0,
+    comments: 0,
+  });
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Studio videos fetched successfully", videos));
+    // .json(new ApiResponce(200, "Studio videos fetched successfully", []));
+});
+
 export {
   getVideo,
   updateVideo,
+  userStudioVideos,
   // uploadVideo,
   deleteVideo,
   SuggestedVideos,
