@@ -210,7 +210,7 @@ const getVideo = asyncHandeler(async (req, res) => {
       $project: {
         __v: 0,
         updatedAt: 0,
-        isPublished: 0,
+        // isPublished: 0,
         subscriptions: 0,
         owner: 0,
         "ownerDetails.password": 0,
@@ -228,7 +228,11 @@ const getVideo = asyncHandeler(async (req, res) => {
       },
     },
   ]);
+
+  
   const result = video[0];
+
+  // console.log(result);
   
   if (!result) {
     throw new ApiError(404, "Video not found");
@@ -239,18 +243,29 @@ const getVideo = asyncHandeler(async (req, res) => {
     result.playbackUrl = playbackUrl;
   }
 
+  // console.log(playbackUrl);
+
   if (result.thumbnailID) {
     result.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${result.thumbnailID}.jpg`;
   }
-
+  
+  // console.log(result.thumbnailUrl);
+  
   if (result.ownerDetails._id.toString() === req.user.id) {
     result.isOwner = true;
   }
+  else {
+    result.isOwner = false;
+  }
 
+  // console.log(result.isOwner);
+  
   const responce = { ...result, playbackUrl };
 
+  console.log("Published status:", result.isPublished, "Is owner:", result.isOwner);
 
   if (!result.isPublished && !result.isOwner) {
+    // console.log("Video is not published and user is not the owner");
     return res
       .status(403)
       .json(new ApiError(403, "You are not authorized to view this video"));
@@ -441,9 +456,7 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
     __v: 0,
     updatedAt: 0,
     owner: 0,
-    // tags: 0,
     description: 0,
-    // dislikes: 0,
     comments: 0,
   });
   return res

@@ -36,18 +36,6 @@ const videoSchema = new Schema(
       enum: ["public", "private", "unlisted"],
       default: "public",
     },
-    likes: {
-      type: Number,
-      default: 0,
-    },
-    dislikes: {
-      type: Number,
-      default: 0,
-    },
-    comments: {
-      type: Number,
-      default: 0,
-    },
     duration: {
       type: String,
       // required: true,

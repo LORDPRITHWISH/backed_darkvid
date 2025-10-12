@@ -3,6 +3,7 @@ import {ApiError} from "../utils/ApiError.js"
 import { asyncHandeler } from "../utils/asyncHandelers.js"
 import { ApiResponce } from "../utils/ApiResponce.js";
 import { User } from "../models/user.models.js";
+import { redisClient } from "../utils/redis.js";
 
 
 
@@ -29,7 +30,16 @@ const GetUser = asyncHandeler(async (req, res) => {
   return res.status(200).json(new ApiResponce(200, "User fetched successfully", user));
 });
 
+const Test = asyncHandeler(async (req, res) => {
+  // await redisClient.set("dark", "666");
+  await redisClient.SETEX("dark", 60, "Death to all humans");
+  const value = await redisClient.get("dark");
+
+  return res.status(200).json(new ApiResponce(200, "Test route is working", { value }));
+});
+
 export {
   GetAllUsers,
-  GetUser
+  GetUser,
+  Test
 }
