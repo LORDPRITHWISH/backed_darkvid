@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import { errorHandeler } from "./middleware/error.middleware";
+import { errorHandler } from "./middleware/error.middleware";
 
 import videoRouter from "./routes/video.routes";
 import healthcheakrouter from "./routes/healthcheak.routes";
@@ -43,7 +43,7 @@ app.use("/api/v1/like", likeRouter);
 
 // Error handling middleware
 
-app.use(errorHandeler);
+app.use(errorHandler);
 
 export { app };
 
