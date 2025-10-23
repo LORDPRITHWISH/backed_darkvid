@@ -14,7 +14,7 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts ",
-    "tdev": "ts-node src/index.ts"
+    "build": "bun src/index.ts"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

@@ -10,7 +10,8 @@ import type{ PipelineStage } from "mongoose";
 
 const CommentOnVideo = asyncHandeler(async (req, res) => {
 
-    const { content, videoId } = req.body;
+    const { videoId } = req.params;
+    const { content } = req.body;
     if (!content || !videoId) {
         throw new ApiError(400, "Content and videoId are required");
     }
@@ -88,72 +89,74 @@ const getCommentsForVideo = asyncHandeler(async (req, res) => {
     const { id } = req.params;
 
     const pipeline: PipelineStage[] = [
-        {
-          $match: { videoId: new mongoose.Types.ObjectId(id) }
+      {
+        $match: { videoId: new mongoose.Types.ObjectId(id) },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "originator",
+          foreignField: "_id",
+          as: "user",
         },
-        {
-          $lookup: {
-            from: "users",
-            localField: "originator",
-            foreignField: "_id",
-            as: "user"
-          }
-        },
-        { $unwind: "$user" },
-        {
-          $lookup: {
-            from: "comments",
-            let: { parentId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$commentId", "$$parentId"] }
-                }
+      },
+      { $unwind: "$user" },
+      {
+        $lookup: {
+          from: "comments",
+          let: { parentId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$commentId", "$$parentId"] },
               },
-              {
-                $lookup: {
-                  from: "users",
-                  localField: "originator",
-                  foreignField: "_id",
-                  as: "user"
-                }
+            },
+            {
+              $lookup: {
+                from: "users",
+                localField: "originator",
+                foreignField: "_id",
+                as: "user",
               },
-              { $unwind: "$user" },
-              {
-                $project: {
-                  _id: 1,
-                  content: 1,
-                  likes: 1,
-                  createdAt: 1,
-                  "user._id": 1,
-                  "user.username": 1,
-                  "user.email": 1
-                }
+            },
+            { $unwind: "$user" },
+            {
+              $project: {
+                _id: 1,
+                content: 1,
+                likes: 1,
+                createdAt: 1,
+                "user._id": 1,
+                "user.username": 1,
+                "user.email": 1,
+                "user.profilepic": 1,
               },
-              { $sort: { createdAt: -1 } }
-            ],
-            as: "replies"
-          }
+            },
+            { $sort: { createdAt: -1 } },
+          ],
+          as: "replies",
         },
-        {
-          $addFields: {
-            replyCount: { $size: "$replies" }
-          }
+      },
+      {
+        $addFields: {
+          replyCount: { $size: "$replies" },
         },
-        {
-          $project: {
-            content: 1,
-            likes: 1,
-            replyCount: 1,
-            createdAt: 1,
-            "user._id": 1,
-            "user.username": 1,
-            "user.email": 1,
-            replies: 1
-          }
+      },
+      {
+        $project: {
+          content: 1,
+          likes: 1,
+          replyCount: 1,
+          createdAt: 1,
+          "user._id": 1,
+          "user.username": 1,
+          "user.email": 1,
+          "user.profilepic": 1,
+          replies: 1,
         },
-        { $sort: { createdAt: -1 } }
-      ];
+      },
+      { $sort: { createdAt: -1 } },
+    ];
 
     const comments = await Comment.aggregate(pipeline);
   

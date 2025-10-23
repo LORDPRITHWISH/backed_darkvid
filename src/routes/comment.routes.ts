@@ -13,9 +13,9 @@ const router = Router();
 router.use(verifyJwt);
 
 
-router.post("/video", CommentOnVideo);
-router.post("/tweet",  CommentOnTweet);
-router.post("/comment",  CommentOnComment);
+router.post("/video/:videoId", CommentOnVideo);
+router.post("/tweet/:tweetId",  CommentOnTweet);
+router.post("/comment/:commentId",  CommentOnComment);
 
 router.get("/video/:id", getCommentsForVideo);
 

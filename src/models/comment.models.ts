@@ -24,14 +24,10 @@ const commentSchemea = new Schema(
       ref: "User",
       required: true,
     },
-    likes:{
-        type:Number,
-        default:0,
+    edited: {
+      type: Boolean,
+      default: false,
     },
-    reply:{
-        type:Number,
-        default:0,
-    }
   },
   { timestamps: true }
 );

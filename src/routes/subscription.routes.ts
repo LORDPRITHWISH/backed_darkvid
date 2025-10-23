@@ -16,7 +16,7 @@ router.route("/me").get(mySubscribedChannels);
 router
     .route("/c/:channelId")
     .get(getUserChannelSubscribers) // get subscribers of a channel
-    .post(toggleSubscription);
+    .put(toggleSubscription);
 
 router.route("/u/:channelId").get(getSubscribedChannels) // get channels subscribed by user
 
