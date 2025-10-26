@@ -60,7 +60,6 @@ const videoSchema = new Schema(
 videoSchema.plugin(mongooseAggregatePaginate);
 
 videoSchema.pre("save", async function (next) {
-
   // Letters + numbers only
   const alphanumeric = customAlphabet(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
