@@ -6,6 +6,7 @@ import { ApiResponce } from "../utils/ApiResponce.js";
 import { Video } from "../models/video.models.js";
 import { Tweet } from "../models/tweet.models.js";
 import { Comment } from "../models/comment.models.js";
+import { redisClient } from "../utils/redis.js";
 
 const toggleVideoLike = asyncHandeler(async (req, res) => {
   //TODO: toggle like on video
@@ -33,6 +34,12 @@ const toggleVideoLike = asyncHandeler(async (req, res) => {
   if (existingLike) {
     if (!mode) {
       await existingLike.deleteOne();
+      const results = await redisClient.hIncrBy(
+        `videoMeta:${videoId}`,
+        existingLike.mode === "like" ? "likes" : "dislikes",
+        -1
+      );
+      console.log("the redis details", results);
       return res
         .status(200)
         .json(new ApiResponce(200, `Video preference neutralized`, null));
@@ -40,12 +47,33 @@ const toggleVideoLike = asyncHandeler(async (req, res) => {
     if (existingLike.mode === mode) {
       // If like already exists with same mode, remove it (unlike)
       await existingLike.deleteOne();
+      const results = await redisClient.hIncrBy(
+        `videoMeta:${videoId}`,
+        mode === "like" ? "likes" : "dislikes",
+        -1
+      );
+      console.log("the redis details", results);
       return res
         .status(200)
         .json(new ApiResponce(200, `Video un${mode}d successfully`, null));
     } else {
       existingLike.mode = mode;
       await existingLike.save();
+      const results = await redisClient
+        .multi()
+        .hIncrBy(
+          `videoMeta:${videoId}`,
+          mode === "like" ? "likes" : "dislikes",
+          1
+        )
+        .hIncrBy(
+          `videoMeta:${videoId}`,
+          mode === "like" ? "dislikes" : "likes",
+          -1
+        )
+        .exec();
+      console.log("the redis details", results);
+
       return res
         .status(200)
         .json(
@@ -66,6 +94,13 @@ const toggleVideoLike = asyncHandeler(async (req, res) => {
     originator: req.user._id,
     mode: mode,
   });
+
+  const results = await redisClient.hIncrBy(
+    `videoMeta:${videoId}`,
+    mode === "like" ? "likes" : "dislikes",
+    1
+  );
+  console.log("the redis details", results);
 
   return res
     .status(200)
@@ -160,9 +195,6 @@ const toggleTweetLike = asyncHandeler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandeler(async (req, res) => {
-  //TODO: get all liked videos
-
-  // const likedVideos = await Like.find({ originator: req.user._id }).populate("videoId");
 
   const likedVideos = await Like.aggregate([
     { $match: { originator: new mongoose.Types.ObjectId(req.user._id) } },

@@ -237,11 +237,6 @@ const getVideo = asyncHandeler(async (req, res) => {
         as: "likes",
       },
     },
-    // {
-    //   $addFields: {
-    //     Like: { $gt: [{ $size: "$likes" }, 0] },
-    //   },
-    // },
     {
       $addFields: {
         LikeMode: {
@@ -341,16 +336,27 @@ const getVideo = asyncHandeler(async (req, res) => {
       .exec();
   }
 
+  const subcount = await redisClient.get(
+    `subCount:${result.ownerDetails._id.toString()}`
+  );
+  if (subcount) {
+    result.ownerDetails.subscriberCount = parseInt(subcount);
+  } else {
+    const count = await mongoose
+      .model("Subscription")
+      .countDocuments({ subscribedTo: result.ownerDetails._id });
+    result.ownerDetails.subscriberCount = count;
+
+    await redisClient.set(
+      `subCount:${result.ownerDetails._id.toString()}`,
+      count,
+      { EX: 3600 }
+    );
+  }
+
   // console.log(result.isOwner);
 
   const responce = { ...result, playbackUrl };
-
-  // console.log(
-  //   "Published status:",
-  //   result.isPublished,
-  //   "Is owner:",
-  //   result.isOwner
-  // );
 
   if (!result.isPublished && !result.isOwner) {
     // console.log("Video is not published and user is not the owner");
