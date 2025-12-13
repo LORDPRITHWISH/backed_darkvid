@@ -15,7 +15,12 @@ const errorHandeler = (
       (error instanceof mongoose.Error ? 400 : 500);
 
     const message = error.message || "Something went wrong";
-    error = new ApiError(statusCode, message, (error as any).errors || [], err.stack);
+    error = new ApiError(
+      statusCode,
+      message,
+      (error as any).errors || [],
+      err.stack
+    );
   }
 
   const responce = {
@@ -24,7 +29,7 @@ const errorHandeler = (
     ...(process.env.NODE_ENV === "development" ? { stack: error.stack } : {}),
   };
 
-  return res.status(error?.statusCode).json(responce);
+  return res.status((error as any).statusCode).json(responce);
 };
 
 export { errorHandeler };
@@ -64,4 +69,3 @@ export { errorHandeler };
 // };
 
 // export { errorHandler };
-

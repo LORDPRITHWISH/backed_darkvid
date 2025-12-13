@@ -15,27 +15,73 @@ export const getLastViews = asyncHandeler(async (req, res) => {
 
   const views = await View.find({ videoId }).sort({ createdAt: -1 }).limit(10);
 
-  return res
-    .status(200)
-    .json(new ApiResponce(200, "Get views endpoint", views));
+  return res.status(200).json(new ApiResponce(200, "viewed till", views));
 });
 
-export const addView = asyncHandeler(async (req, res) => {
-  const { videoId, duration } = req.body;
+export const getViewHistory = asyncHandeler(async (req, res) => {
+  return res.status(200).json(new ApiResponce(200, "view History", null));
+});
 
-  if (!videoId || !duration) {
-    throw new ApiError(400, "Video ID and duration are required");
+export const startView = asyncHandeler(async (req, res) => {
+  const { videoId, lastPosition } = req.body;
+
+  if (!videoId || !lastPosition) {
+    throw new ApiError(400, "Video ID and last position are required");
   }
 
-  const view = new View({
-    videoId,
-    userId: req.user.id,
-    duration,
-  });
+  const userId = req.user.id;
 
-  await view.save();
+  // const view = new View({
+  //   videoId,
+  //   userId: req.user.id,
+  //   duration,
+  // });
+
+  // await view.save();
 
   return res
     .status(201)
-    .json(new ApiResponce(201, "View added successfully", view));
+    .json(new ApiResponce(201, "View added successfully", null));
+});
+export const heartbeatView = asyncHandeler(async (req, res) => {
+  const { videoId, lastPosition } = req.body;
+
+  if (!videoId || !lastPosition) {
+    throw new ApiError(400, "Video ID and last position are required");
+  }
+
+  const userId = req.user.id;
+
+  // const view = new View({
+  //   videoId,
+  //   userId: req.user.id,
+  //   duration,
+  // });
+
+  // await view.save();
+
+  return res
+    .status(201)
+    .json(new ApiResponce(201, "View added successfully", null));
+});
+export const endView = asyncHandeler(async (req, res) => {
+  const { videoId, lastPosition } = req.body;
+
+  if (!videoId || !lastPosition) {
+    throw new ApiError(400, "Video ID and last position are required");
+  }
+
+  const userId = req.user.id;
+
+  // const view = new View({
+  //   videoId,
+  //   userId: req.user.id,
+  //   duration,
+  // });
+
+  // await view.save();
+
+  return res
+    .status(201)
+    .json(new ApiResponce(201, "View added successfully", null));
 });
