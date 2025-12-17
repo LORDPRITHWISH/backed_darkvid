@@ -10,11 +10,15 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3 = new S3Client({
-  region: process.env.AWS_REGION!,
+  // region: process.env.AWS_REGION!,
+  region: "us-east-1",
+  endpoint: `https://${process.env.VULTER_ENDPOINT}`,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: false,
+  requestChecksumCalculation: "WHEN_REQUIRED",
 });
 
 const BUCKET = process.env.S3_BUCKET!;
@@ -34,7 +38,8 @@ export async function initMultipartUpload(key: string, contentType: string) {
 
   return {
     uploadId: resp.UploadId!,
-    videoUrl: `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+    // videoUrl: `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+    videoUrl: `https://${BUCKET}.${process.env.VULTER_ENDPOINT}/${key}`,
   };
 }
 
@@ -48,6 +53,7 @@ export async function getPresignedUrl(
     Key: key,
     UploadId: uploadId,
     PartNumber: partNumber,
+    ChecksumAlgorithm: undefined,
   });
 
   return await getSignedUrl(s3, command, { expiresIn: 3000 }); // 5 min
