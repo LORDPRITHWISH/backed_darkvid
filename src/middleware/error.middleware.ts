@@ -3,7 +3,9 @@ import { ApiError } from "../utils/ApiError";
 import type { ErrorRequestHandler } from "express";
 
 const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
+const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   let error = err;
+
 
   if (!(error instanceof ApiError)) {
     const statusCode =
@@ -11,9 +13,17 @@ const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
       (error instanceof mongoose.Error ? 400 : 500);
 
     const message = error.message || "Something went wrong";
-    error = new ApiError(statusCode, message, (error as any).errors || [], err.stack);
+    error = new ApiError(
+      statusCode,
+      message,
+      (error as any).errors || [],
+      err.stack
+    );
   }
 
+  const response = {
+    success: false,
+    statusCode: (error as ApiError).code,
   const response = {
     success: false,
     statusCode: (error as ApiError).code,
@@ -24,6 +34,11 @@ const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   res
     .status((error as ApiError).code || 500)
     .json(response);
+  return;
+};
+
+export { errorHandler };
+  res.status((error as ApiError).code || 500).json(response);
   return;
 };
 

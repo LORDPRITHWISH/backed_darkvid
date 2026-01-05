@@ -1,7 +1,7 @@
 import { model, Schema } from "mongoose";
 import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
-import { nanoid } from "nanoid";
-
+// import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 
 const videoSchema = new Schema(
   {
@@ -60,9 +60,16 @@ const videoSchema = new Schema(
 videoSchema.plugin(mongooseAggregatePaginate);
 
 videoSchema.pre("save", async function (next) {
+  // Letters + numbers only
+  const alphanumeric = customAlphabet(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    10
+  );
+
   if (!this.videoId) {
-    this.videoId = nanoid(10);
+    this.videoId = alphanumeric();
   }
+
   next();
 });
 

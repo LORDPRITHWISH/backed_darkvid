@@ -7,7 +7,4 @@ const router = Router();
 
 router.route("/").get(healthcheak)
 
-
-// router.route("/").get(upload.single('avatar'), healthcheak)
-
 export default router;

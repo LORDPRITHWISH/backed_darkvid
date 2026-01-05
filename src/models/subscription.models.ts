@@ -12,7 +12,7 @@ const subsriptionSchema = new Schema({
         required: true,
     },
     isPublic: {
-        type: Boolean,
+        type: Boolean, // whether the user wants to display who they are subscribed to
         default: true,
     },
 }, { timestamps: true });

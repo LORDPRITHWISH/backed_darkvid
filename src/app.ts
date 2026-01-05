@@ -14,6 +14,7 @@ import playlistRoute from "./routes/playlist.routes";
 import dashBoardRoute from "./routes/dashboard.routes.js";
 import tweetRouter from "./routes/tweet.routes.js";
 import likeRouter from "./routes/like.routes.js";
+import viewRoter from "./routes/view.routes";
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use("/api/v1/playlist", playlistRoute);
 app.use("/api/v1/dashboard", dashBoardRoute);
 app.use("/api/v1/tweet", tweetRouter);
 app.use("/api/v1/like", likeRouter);
+app.use("/api/v1/view", viewRoter);
 
 // Error handling middleware
 

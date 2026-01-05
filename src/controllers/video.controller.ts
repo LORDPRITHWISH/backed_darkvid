@@ -12,6 +12,7 @@ import {
   initMultipartUpload,
   uploadImage,
 } from "../utils/s3Helper";
+import { redisClient } from "../utils/redis";
 
 const initVideoUpload = asyncHandeler(async (req, res) => {
   try {
@@ -207,12 +208,54 @@ const getVideo = asyncHandeler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "likes",
+        let: { videoId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$videoId", "$$videoId"] },
+                  {
+                    $eq: [
+                      "$originator",
+                      mongoose.Types.ObjectId.createFromHexString(req.user.id),
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              mode: 1, // only include the mode field
+            },
+          },
+        ],
+        as: "likes",
+      },
+    },
+    {
+      $addFields: {
+        LikeMode: {
+          $cond: [
+            { $gt: [{ $size: "$likes" }, 0] },
+            { $arrayElemAt: ["$likes.mode", 0] }, // extract first mode (if exists)
+            null,
+          ],
+        },
+      },
+    },
+    {
       $project: {
         __v: 0,
         updatedAt: 0,
         // isPublished: 0,
         subscriptions: 0,
         owner: 0,
+        likes: 0,
         "ownerDetails.password": 0,
         "ownerDetails.__v": 0,
         "ownerDetails.updatedAt": 0,
@@ -229,11 +272,8 @@ const getVideo = asyncHandeler(async (req, res) => {
     },
   ]);
 
-  
   const result = video[0];
 
-  // console.log(result);
-  
   if (!result) {
     throw new ApiError(404, "Video not found");
   }
@@ -241,28 +281,82 @@ const getVideo = asyncHandeler(async (req, res) => {
   const playbackUrl = await getVideoUrl(`videos/${result.videoKey}.mp4`);
   if (result) {
     result.playbackUrl = playbackUrl;
+    delete result.videoKey;
   }
 
   // console.log(playbackUrl);
 
   if (result.thumbnailID) {
     result.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${result.thumbnailID}.jpg`;
+    delete result.thumbnailID;
   }
-  
+
+  if (!result.LikeMode) {
+    result.LikeMode = "";
+  }
+
   // console.log(result.thumbnailUrl);
-  
+
   if (result.ownerDetails._id.toString() === req.user.id) {
     result.isOwner = true;
-  }
-  else {
+  } else {
     result.isOwner = false;
   }
 
-  // console.log(result.isOwner);
-  
-  const responce = { ...result, playbackUrl };
+  const meta = await redisClient.hGetAll(`videoMeta:${result._id.toString()}`);
 
-  console.log("Published status:", result.isPublished, "Is owner:", result.isOwner);
+  if (Object.keys(meta).length) {
+    result.views = meta.views ? parseInt(meta.views) : result.views || 0;
+    result.likes = meta.likes ? parseInt(meta.likes) : result.likes || 0;
+    result.dislikes = meta.dislikes
+      ? parseInt(meta.dislikes)
+      : result.dislikes || 0;
+
+    console.log(!!meta, meta);
+  } else {
+    // console.log("No meta found in redis, setting initial values");
+    const likeCount = await mongoose
+      .model("Like")
+      .countDocuments({ videoId: result._id, mode: "like" });
+    result.likes = likeCount;
+
+    const dislikeCount = await mongoose
+      .model("Like")
+      .countDocuments({ videoId: result._id, mode: "dislike" });
+    result.dislikes = dislikeCount;
+
+    await redisClient
+      .multi()
+      .hSet(`videoMeta:${result._id.toString()}`, {
+        views: 0,
+        likes: likeCount,
+        dislikes: dislikeCount,
+      })
+      .expire(`videoMeta:${result._id.toString()}`, 3600)
+      .exec();
+  }
+
+  const subcount = await redisClient.get(
+    `subCount:${result.ownerDetails._id.toString()}`
+  );
+  if (subcount) {
+    result.ownerDetails.subscriberCount = parseInt(subcount);
+  } else {
+    const count = await mongoose
+      .model("Subscription")
+      .countDocuments({ subscribedTo: result.ownerDetails._id });
+    result.ownerDetails.subscriberCount = count;
+
+    await redisClient.set(
+      `subCount:${result.ownerDetails._id.toString()}`,
+      count,
+      { EX: 3600 }
+    );
+  }
+
+  // console.log(result.isOwner);
+
+  const responce = { ...result, playbackUrl };
 
   if (!result.isPublished && !result.isOwner) {
     // console.log("Video is not published and user is not the owner");
@@ -308,7 +402,6 @@ const getVideoDetails = asyncHandeler(async (req, res) => {
 });
 
 const updateVideo = asyncHandeler(async (req, res) => {
-
   const videoId = req.params.videoId;
   if (!videoId) {
     return res.status(400).json(new ApiError(400, "Video ID is required"));
@@ -358,7 +451,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
   //   });
 
   const videos = await Video.aggregate([
-    { $match: { isPublished: true } },
+    { $match: { isPublished: true, privacy: "public" } },
     { $sample: { size: 30 } },
     {
       $lookup: {
@@ -383,6 +476,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
         videoKey: 0,
         // videoURL: 0,
         dislikes: 0,
+        privacy: 0,
         comments: 0,
 
         // createdAt: 0,
@@ -411,6 +505,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
     if (video.thumbnailID) {
       video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
     }
+    delete video.thumbnailID;
   });
 
   return res
@@ -445,7 +540,6 @@ const UsersVideos = asyncHandeler(async (req, res) => {
 
 // export const userStudioVideos = asyncHandeler(async (req, res) => {
 const userStudioVideos = asyncHandeler(async (req, res) => {
-
   // console.log("hello");
 
   const userId = req.user.id;
@@ -462,7 +556,7 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponce(200, "Studio videos fetched successfully", videos));
-    // .json(new ApiResponce(200, "Studio videos fetched successfully", []));
+  // .json(new ApiResponce(200, "Studio videos fetched successfully", []));
 });
 
 export {

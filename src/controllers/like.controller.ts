@@ -6,10 +6,12 @@ import { ApiResponce } from "../utils/ApiResponce.js";
 import { Video } from "../models/video.models.js";
 import { Tweet } from "../models/tweet.models.js";
 import { Comment } from "../models/comment.models.js";
+import { redisClient } from "../utils/redis.js";
 
 const toggleVideoLike = asyncHandeler(async (req, res) => {
   //TODO: toggle like on video
   const { videoId } = req.params;
+  const { mode } = req.body;
 
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid videoId");
@@ -20,35 +22,89 @@ const toggleVideoLike = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "Video not found");
   }
 
+  if (mode && !["like", "dislike"].includes(mode)) {
+    throw new ApiError(400, "Mode must be 'like' or 'dislike' or null");
+  }
+
   const existingLike = await Like.findOne({
     videoId: videoId,
     originator: req.user._id,
   });
 
   if (existingLike) {
-    // If like already exists, remove it (unlike)
+    if (!mode) {
+      await existingLike.deleteOne();
+      const results = await redisClient.hIncrBy(
+        `videoMeta:${videoId}`,
+        existingLike.mode === "like" ? "likes" : "dislikes",
+        -1
+      );
+      console.log("the redis details", results);
+      return res
+        .status(200)
+        .json(new ApiResponce(200, `Video preference neutralized`, null));
+    }
+    if (existingLike.mode === mode) {
+      // If like already exists with same mode, remove it (unlike)
+      await existingLike.deleteOne();
+      const results = await redisClient.hIncrBy(
+        `videoMeta:${videoId}`,
+        mode === "like" ? "likes" : "dislikes",
+        -1
+      );
+      console.log("the redis details", results);
+      return res
+        .status(200)
+        .json(new ApiResponce(200, `Video un${mode}d successfully`, null));
+    } else {
+      existingLike.mode = mode;
+      await existingLike.save();
+      const results = await redisClient
+        .multi()
+        .hIncrBy(
+          `videoMeta:${videoId}`,
+          mode === "like" ? "likes" : "dislikes",
+          1
+        )
+        .hIncrBy(
+          `videoMeta:${videoId}`,
+          mode === "like" ? "dislikes" : "likes",
+          -1
+        )
+        .exec();
+      console.log("the redis details", results);
 
-    video.likes = Math.max(0, video.likes - 1);
-    await video.save();
+      return res
+        .status(200)
+        .json(
+          new ApiResponce(200, `Video ${mode}d successfully`, existingLike)
+        );
+    }
+  }
 
-    await existingLike.deleteOne();
+  if (!mode) {
     return res
       .status(200)
-      .json(new ApiResponce(200, "Video unliked successfully", null));
+      .json(new ApiResponce(200, `Video neither liked nor disliked`, null));
   }
 
   // If like doesn't exist, create a new one
   const like = await Like.create({
     videoId: videoId,
     originator: req.user._id,
+    mode: mode,
   });
 
-  video.likes += 1;
-  await video.save();
+  const results = await redisClient.hIncrBy(
+    `videoMeta:${videoId}`,
+    mode === "like" ? "likes" : "dislikes",
+    1
+  );
+  console.log("the redis details", results);
 
   return res
     .status(200)
-    .json(new ApiResponce(200, "Video like toggled successfully", like));
+    .json(new ApiResponce(200, `Video ${mode}d successfully`, like));
 });
 
 const toggleCommentLike = asyncHandeler(async (req, res) => {
@@ -139,46 +195,45 @@ const toggleTweetLike = asyncHandeler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandeler(async (req, res) => {
-  //TODO: get all liked videos
 
-    // const likedVideos = await Like.find({ originator: req.user._id }).populate("videoId");
-
-    const likedVideos = await Like.aggregate([
-      { $match: { originator: new mongoose.Types.ObjectId(req.user._id) } },
-      {
-        $lookup: {
-          from: "videos",
-          localField: "videoId",
-          foreignField: "_id",
-          as: "videoDetails",
-        },
+  const likedVideos = await Like.aggregate([
+    { $match: { originator: new mongoose.Types.ObjectId(req.user._id) } },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "videoId",
+        foreignField: "_id",
+        as: "videoDetails",
       },
-      { $unwind: "$videoDetails" },
-      {
-        $project: {
-          _id: 0,
-          videoId: "$videoDetails._id",
-          title: "$videoDetails.title",
+    },
+    { $unwind: "$videoDetails" },
+    {
+      $project: {
+        _id: 0,
+        videoId: "$videoDetails._id",
+        title: "$videoDetails.title",
         //   description: "$videoDetails.description",
-          videoURL: "$videoDetails.videoURL",
-          thumbnailURL: "$videoDetails.thumbnailURL",
+        videoURL: "$videoDetails.videoURL",
+        thumbnailURL: "$videoDetails.thumbnailURL",
         //   tags: "$videoDetails.tags",
-          views: "$videoDetails.views",
-          likes: "$videoDetails.likes",
-          dislikes: "$videoDetails.dislikes",
+        views: "$videoDetails.views",
+        likes: "$videoDetails.likes",
+        dislikes: "$videoDetails.dislikes",
         //   comments: "$videoDetails.comments",
-          duration: "$videoDetails.duration",
+        duration: "$videoDetails.duration",
         //   isPublished: "$videoDetails.isPublished",
-          owner: "$videoDetails.owner",
+        owner: "$videoDetails.owner",
         //   createdAt: "$videoDetails.createdAt",
         //   updatedAt: "$videoDetails.updatedAt",
-        },
       },
-    ]);
+    },
+  ]);
 
-    return res
-      .status(200)
-      .json(new ApiResponce(200, "Liked videos fetched successfully", likedVideos));
+  return res
+    .status(200)
+    .json(
+      new ApiResponce(200, "Liked videos fetched successfully", likedVideos)
+    );
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };

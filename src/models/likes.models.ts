@@ -19,6 +19,11 @@ const likeSchemea = new Schema(
       ref: "User",
       required: true,
     },
+    mode: {
+      type: String,
+      enum: ["like", "dislike"],
+      required: true,
+    },
   },
   { timestamps: true }
 );
