@@ -6,7 +6,6 @@ import connectDB from "./db";
 // dotenv.config({
 //   path: "./.env",
 // });
-console.log(Bun.env.PORT);
 const port = process.env.PORT || 4000;
 
 app.get("/", (req, res) => {
