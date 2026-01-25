@@ -18,12 +18,23 @@ import viewRoter from "./routes/view.routes";
 
 const app = express();
 
+const origins = process.env.CORS_ORIGIN?.split(",");
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: origins,
     credentials: true,
   })
 );
+
+
+// app.use(
+//   cors({
+//     origin: process.env.CORS_ORIGIN,
+//     credentials: true,
+//   })
+// );
+
 app.use(cookieParser());
 
 //common middlewares
