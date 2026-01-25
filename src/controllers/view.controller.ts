@@ -44,10 +44,12 @@ export const startView = asyncHandeler(async (req, res) => {
 
   const viewerId = req.user.id;
 
+  const basekey = `${viewerId}:${id}:${sessionId}`;
+
   // Redis keys for this session
-  const sessionKey = `session:${viewerId}:${id}:${sessionId}`;
-  const progressKey = `progress:${viewerId}:${id}:${sessionId}`;
-  const progressLastKey = `progress:last:${viewerId}:${id}:${sessionId}`;
+  const sessionKey = `session:${basekey}`;
+  const progressKey = `progress:${basekey}`;
+  const progressLastKey = `progress:last:${basekey}`;
 
   const existingHistoryId = await redisClient.get(sessionKey);
 
@@ -78,7 +80,7 @@ export const startView = asyncHandeler(async (req, res) => {
   await redisClient.set(sessionKey, history._id.toString());
 
   // Add watcher to active watcher set
-  await redisClient.sAdd("activeWatchers", `${viewerId}:${id}`);
+  await redisClient.sAdd("activeWatchers", basekey);
 
   // Initialize current position with TTL for heartbeat tracking
   await redisClient.setEx(progressKey, 30, String(startPosition));
@@ -120,9 +122,11 @@ export const heartbeatView = asyncHandeler(async (req, res) => {
 
   const { id } = video;
 
-  const sessionKey = `session:${viewerId}:${id}:${sessionId}`;
-  const progressKey = `progress:${viewerId}:${id}:${sessionId}`;
-  const progressLastKey = `progress:last:${viewerId}:${id}:${sessionId}`;
+  const basekey = `${viewerId}:${id}:${sessionId}`;
+
+  const sessionKey = `session:${basekey}`;
+  const progressKey = `progress:${basekey}`;
+  const progressLastKey = `progress:last:${basekey}`;
   console.log("key", sessionKey);
 
   const sessionDataId = await redisClient.get(sessionKey);
@@ -160,10 +164,11 @@ export const endView = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "Video not found");
   }
 
-  const sessionKey = `session:${viewerId}:${id}:${sessionId}`;
-  const progressKey = `progress:${viewerId}:${id}:${sessionId}`;
-  const progressLastKey = `progress:last:${viewerId}:${id}:${sessionId}`;
+  const basekey = `${viewerId}:${id}:${sessionId}`;
 
+  const sessionKey = `session:${basekey}`;
+  const progressKey = `progress:${basekey}`;
+  const progressLastKey = `progress:last:${basekey}`;
   console.log("Sesson key ", sessionKey);
 
   const sessionDataId = await redisClient.get(sessionKey);
@@ -178,10 +183,29 @@ export const endView = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Last position must be a number");
   }
 
+  const sessionData = await ViewHistory.findById(sessionDataId);
+  if (!sessionData) {
+    throw new ApiError(400, "No viewing history found for this session");
+  }
+
+  const video = await Video.findOne({ videoId });
+
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
+
+  const completed = lastPosition >= Math.floor(video.duration - 1);
+
   // Update or create the View document
   const view = await View.findOneAndUpdate(
     { videoId: id, viewerId },
-    { lastPosition, updatedAt: new Date() },
+    {
+      lastPosition,
+      $inc: {
+        totalWatchTime: Math.max(0, lastPosition - sessionData.startPosition),
+      },
+      completed,
+    },
     { new: true, upsert: true }
   );
 
@@ -197,7 +221,7 @@ export const endView = asyncHandeler(async (req, res) => {
     .del(sessionKey)
     .del(progressKey)
     .del(progressLastKey)
-    .sRem("activeWatchers", `${viewerId}:${videoId}`)
+    .sRem("activeWatchers", basekey)
     .exec();
 
   return res

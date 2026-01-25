@@ -37,7 +37,7 @@ const videoSchema = new Schema(
       default: "public",
     },
     duration: {
-      type: String,
+      type: Number,
       // required: true,
     },
     isPublished: {

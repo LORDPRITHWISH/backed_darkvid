@@ -2,6 +2,7 @@
 // import express from "express";
 import { app } from "./app";
 import connectDB from "./db";
+import "./workers/viewSessionFinalizer";
 
 // dotenv.config({
 //   path: "./.env",
@@ -12,10 +13,8 @@ app.get("/", (req, res) => {
   res.send("Hello Worlds!");
 });
 
-
-
 connectDB()
-  .then(()=>{
+  .then(() => {
     app.listen(port, () => {
       console.log(`Listening on port ${port}...`);
     });
