@@ -37,7 +37,10 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
 const registerUser = asyncHandeler(async (req, res) => {
   console.log("FILES RECEIVED:", req.files);
 
+
   const { fullname, email, username, password } = req.body;
+
+  console.log("the Body",req.body)
 
   if (
     [fullname, email, username, password].some(
@@ -595,6 +598,27 @@ const getUserWatchHistory = asyncHandeler(async (req, res) => {
     .json(
       new ApiResponce(200, "User watch history fetched", user[0].watchHistory)
     );
+});
+
+export const avalableUsername = asyncHandeler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username || username.trim() === "") {
+    throw new ApiError(400, "Username is required");
+  }
+
+  const existingUser = await User.findOne({ username: username.toLowerCase() });
+
+  if (existingUser) {
+    return res
+      .status(200)
+      .json(new ApiResponce(200, "Username is taken", { available: false }));
+  } else {
+    return res
+      .status(200)
+      .json(new ApiResponce(200, "Username is available", { available: true }));
+  }
+
 });
 
 export {

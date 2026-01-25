@@ -3,18 +3,18 @@ import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const ViewHistorySchema = new Schema(
   {
-    userId: {
+    viewerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
+
     },
 
     videoId: {
       type: Schema.Types.ObjectId,
       ref: "Video",
       required: true,
-      index: true,
+
     },
 
     // exact timestamp when the user opened the video

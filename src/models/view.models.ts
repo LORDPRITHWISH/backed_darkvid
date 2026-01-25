@@ -7,13 +7,13 @@ const viewSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Video",
       required: true,
-      index: true,
+      // index: true,
     },
-    userId: {
+    viewerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
+      // index: true,
     },
     lastPosition: {
       type: Number,
@@ -31,7 +31,7 @@ const viewSchema = new Schema(
   { timestamps: true }
 );
 
-viewSchema.index({ userId: 1, videoId: 1 }, { unique: true });
+viewSchema.index({ viewerId: 1, videoId: 1 }, { unique: true });
 
 viewSchema.plugin(mongooseAggregatePaginate);
 

@@ -10,6 +10,7 @@ import {
   updateAvator,
   changeCoverImage,
   getUserWatchHistory,
+  avalableUsername,
 } from "../controllers/user.controller";
 import { upload } from "../middleware/multer.middleware";
 import { verifyJwt } from "../middleware/auth.middleware";
@@ -36,6 +37,8 @@ router.post(
   registerUser
 );
 
+router.get("/available/:username", avalableUsername);
+
 router.route("/refresh_token").post(refreshAccessToken);
 
 //secured routes
@@ -51,6 +54,5 @@ router
   .route("/cover")
   .patch(verifyJwt, upload.single("coverimage"), changeCoverImage);
 router.route("/history").get(verifyJwt, getUserWatchHistory);
-
 
 export default router;

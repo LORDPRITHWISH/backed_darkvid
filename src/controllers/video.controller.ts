@@ -207,55 +207,65 @@ const getVideo = asyncHandeler(async (req, res) => {
         isSubscribed: { $gt: [{ $size: "$subscriptions" }, 0] },
       },
     },
-    {
-      $lookup: {
-        from: "likes",
-        let: { videoId: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ["$videoId", "$$videoId"] },
-                  {
-                    $eq: [
-                      "$originator",
-                      mongoose.Types.ObjectId.createFromHexString(req.user.id),
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-          {
-            $project: {
-              _id: 0,
-              mode: 1, // only include the mode field
-            },
-          },
-        ],
-        as: "likes",
-      },
-    },
-    {
-      $addFields: {
-        LikeMode: {
-          $cond: [
-            { $gt: [{ $size: "$likes" }, 0] },
-            { $arrayElemAt: ["$likes.mode", 0] }, // extract first mode (if exists)
-            null,
-          ],
-        },
-      },
-    },
+    // {
+    //   $lookup: {
+    //     from: "likes",
+    //     let: { videoId: "$_id" },
+    //     pipeline: [
+    //       {
+    //         $match: {
+    //           $expr: {
+    //             $and: [
+    //               { $eq: ["$videoId", "$$videoId"] },
+    //               {
+    //                 $eq: [
+    //                   "$originator",
+    //                   mongoose.Types.ObjectId.createFromHexString(req.user.id),
+    //                 ],
+    //               },
+    //             ],
+    //           },
+    //         },
+    //       },
+    //       {
+    //         $project: {
+    //           _id: 0,
+    //           mode: 1, // only include the mode field
+    //         },
+    //       },
+    //     ],
+    //     as: "likes",
+    //   },
+    // },
+    // {
+    //   $lookup: {
+    //     from: "viewhistories",
+    //     localField: "_id",
+    //     foreignField: "videoId",
+    //     as: "viewHistories",
+    //   },
+    // },
+    // {
+    //   $addFields: {
+    //     LikeMode: {
+    //       $cond: [
+    //         { $gt: [{ $size: "$likes" }, 0] },
+    //         { $arrayElemAt: ["$likes.mode", 0] }, // extract first mode (if exists)
+    //         null,
+    //       ],
+    //     },
+    //     totalViews: { $ifNull: [{ $size: "$viewHistories" }, 0] },
+    //   },
+    // },
     {
       $project: {
         __v: 0,
         updatedAt: 0,
+        // viewHistories: 0,
         // isPublished: 0,
         subscriptions: 0,
         owner: 0,
-        likes: 0,
+        // likes: 0,
         "ownerDetails.password": 0,
         "ownerDetails.__v": 0,
         "ownerDetails.updatedAt": 0,
@@ -271,6 +281,8 @@ const getVideo = asyncHandeler(async (req, res) => {
       },
     },
   ]);
+
+  console.log("the Video", video);
 
   const result = video[0];
 
@@ -312,25 +324,83 @@ const getVideo = asyncHandeler(async (req, res) => {
       ? parseInt(meta.dislikes)
       : result.dislikes || 0;
 
-    console.log(!!meta, meta);
+    // console.log(!!meta, meta);
   } else {
-    // console.log("No meta found in redis, setting initial values");
-    const likeCount = await mongoose
-      .model("Like")
-      .countDocuments({ videoId: result._id, mode: "like" });
-    result.likes = likeCount;
+    const [stats] = await Video.aggregate([
+      { $match: { _id: result._id } },
+      {
+        $lookup: {
+          from: "views",
+          localField: "_id",
+          foreignField: "videoId",
+          as: "viewsData",
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          let: { videoId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$videoId", "$$videoId"] },
+              },
+            },
+            {
+              $group: {
+                _id: "$mode",
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          as: "reactionData",
+        },
+      },
+      {
+        $addFields: {
+          likeCount: {
+            $ifNull: [
+              {
+                $first: {
+                  $filter: {
+                    input: "$reactionData",
+                    as: "r",
+                    cond: { $eq: ["$$r._id", "like"] },
+                  },
+                },
+              },
+              { count: 0 },
+            ],
+          },
+          dislikeCount: {
+            $ifNull: [
+              {
+                $first: {
+                  $filter: {
+                    input: "$reactionData",
+                    as: "r",
+                    cond: { $eq: ["$$r._id", "dislike"] },
+                  },
+                },
+              },
+              { count: 0 },
+            ],
+          },
+          viewCount: { $size: { $ifNull: ["$viewsData", []] } },
+        },
+      },
+    ]);
 
-    const dislikeCount = await mongoose
-      .model("Like")
-      .countDocuments({ videoId: result._id, mode: "dislike" });
-    result.dislikes = dislikeCount;
+    result.views = stats.viewCount;
+    result.likes = stats.likeCount.count;
+    result.dislikes = stats.dislikeCount.count;
 
     await redisClient
       .multi()
       .hSet(`videoMeta:${result._id.toString()}`, {
-        views: 0,
-        likes: likeCount,
-        dislikes: dislikeCount,
+        views: stats.viewCount,
+        likes: stats.likeCount.count,
+        dislikes: stats.dislikeCount.count,
       })
       .expire(`videoMeta:${result._id.toString()}`, 3600)
       .exec();
@@ -450,6 +520,165 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
 
   //   });
 
+  const userId = req.user.id;
+
+  const videos = await Video.aggregate([
+    { $match: { isPublished: true, privacy: "public" } },
+    { $sample: { size: 30 } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: "viewhistories",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "viewHistories",
+      },
+    },
+    // {
+    //   $lookup: {
+    //     from: "views",
+    //     let: { videoId: "$_id" },
+    //     pipeline: [
+    //       {
+    //         $match: {
+    //           $expr: {
+    //             $eq: ["$videoId", "$$videoId"],
+    //           },
+    //         },
+    //       },
+    //       // {
+    //       //   $group : {
+    //       //     _id : null,
+    //       //     viewers : { $addToSet : "$viewer" }
+    //       //   }
+    //       // }
+    //     ],
+    //     as: "viewsDataAll",
+    //   },
+    // },
+    {
+      $lookup: {
+        from: "views",
+        let: { videoId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$videoId", "$$videoId"] },
+                  {
+                    $eq: [
+                      "$viewerId",
+                      mongoose.Types.ObjectId.createFromHexString(userId),
+                      // viewerId,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          // {
+          //   $group : {
+          //     _id : null,
+          //     viewers : { $addToSet : "$viewer" }
+          //   }
+          // }
+        ],
+        as: "viewsData",
+      },
+    },
+    {
+      $addFields: {
+        totalViews: { $size: "$viewHistories" },
+        // uniqueViews: { $size: "$viewsData" },
+        hasViewed: { $gt: [{ $size: "$viewsData" }, 0] },
+        // completed: {
+        //   $cond: [
+        //     { $gt: [{ $size: "$viewsData" }, 0] },
+        //     { $arrayElemAt: ["$viewsData.completed", 0] },
+        //     false,
+        //   ],
+        // },
+        completed: {
+          $ifNull: [{ $first: "$viewsData.completed" }, false],
+        },
+        watchProgress: {
+          $ifNull: [{ $first: "$viewsData.lastPosition" }, 0],
+        },
+      },
+    },
+    {
+      $unwind: "$ownerDetails",
+    },
+    {
+      $project: {
+        _id: 0,
+        __v: 0,
+        status: 0,
+        updatedAt: 0,
+        isPublished: 0,
+        owner: 0,
+        tags: 0,
+        description: 0,
+        videoKey: 0,
+        // videoURL: 0,
+        dislikes: 0,
+        privacy: 0,
+        comments: 0,
+        viewHistories: 0,
+        viewsData: 0,
+
+        // createdAt: 0,
+
+        "ownerDetails.password": 0,
+        "ownerDetails.__v": 0,
+        "ownerDetails.updatedAt": 0,
+        "ownerDetails.email": 0,
+        "ownerDetails.bio": 0,
+        "ownerDetails.coverimage": 0,
+        "ownerDetails.refereshToken": 0,
+        "ownerDetails.watchHistory": 0,
+        "ownerDetails.createdAt": 0,
+        "ownerDetails.name": 0,
+      },
+    },
+  ]);
+
+  if (!videos || videos.length === 0) {
+    return res
+      .status(404)
+      .json(new ApiResponce(404, "No suggested videos found", {}));
+  }
+
+  videos.forEach((video) => {
+    if (video.thumbnailID) {
+      video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
+    }
+    delete video.thumbnailID;
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponce(200, "Suggested videos fetched successfully", videos)
+    );
+});
+
+export const videoSpecificSuggestion = asyncHandeler(async (req, res) => {
+  // Video.find({ isPublished: true })
+  //   .sort({ createdAt: -1 })
+  //   .limit(10)
+  //   .then((videos) => {
+
+  //   });
+
   const videos = await Video.aggregate([
     { $match: { isPublished: true, privacy: "public" } },
     { $sample: { size: 30 } },
@@ -546,13 +775,149 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
 
   // console.log("Fetching all videos for user ID:", userId);
 
-  const videos = await Video.find({ owner: userId }).select({
-    __v: 0,
-    updatedAt: 0,
-    owner: 0,
-    description: 0,
-    comments: 0,
+  // const videos = await Video.find({ owner: userId }).select({
+  //   __v: 0,
+  //   // updatedAt: 0,
+  //   owner: 0,
+  //   description: 0,
+  //   comments: 0,
+  // }).lean();
+
+  const videos = await Video.aggregate([
+    { $match: { owner: mongoose.Types.ObjectId.createFromHexString(userId) } },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "comments",
+      },
+    },
+    {
+      $addFields: {
+        commentCount: { $size: "$comments" },
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        let: { videoId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$videoId", "$$videoId"] },
+            },
+          },
+          {
+            $group: {
+              _id: "$mode",
+              count: { $sum: 1 },
+            },
+          },
+        ],
+        as: "reactionData",
+      },
+    },
+    {
+      $lookup: {
+        from: "views",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "viewsData",
+      },
+    },
+    {
+      $lookup: {
+        from: "viewhistories",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "viewHistories",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "commentsData",
+      },
+    },
+    {
+      $addFields: {
+        likes: {
+          $ifNull: [
+            {
+              $first: {
+                $filter: {
+                  input: "$reactionData",
+                  as: "r",
+                  cond: { $eq: ["$$r._id", "like"] },
+                },
+              },
+            },
+            { count: 0 },
+          ],
+        },
+        dislikes: {
+          $ifNull: [
+            {
+              $first: {
+                $filter: {
+                  input: "$reactionData",
+                  as: "r",
+                  cond: { $eq: ["$$r._id", "dislike"] },
+                },
+              },
+            },
+            { count: 0 },
+          ],
+        },
+        uniqueViews: {
+          $size: {
+            $ifNull: ["$viewsData", []],
+          },
+        },
+        totalWatchTime: {
+          $sum: {
+            $map: {
+              input: "$viewHistories",
+              as: "vh",
+              in: "$$vh.totalWatchTime",
+            },
+          },
+        },
+        totalViews: { $size: "$viewHistories" },
+        totalComments: { $size: "$commentsData" },
+      },
+    },
+    {
+      $addFields: {
+        likes: "$likes.count",
+        dislikes: "$dislikes.count",
+      },
+    },
+    {
+      $project: {
+        __v: 0,
+        owner: 0,
+        description: 0,
+        comments: 0,
+        reactionData: 0,
+        viewsData: 0,
+        viewHistories: 0,
+      },
+    },
+  ]);
+
+  videos.forEach((video) => {
+    if (video.thumbnailID) {
+      video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
+    }
+    delete video.thumbnailID;
   });
+
+  console.log("the video", videos[0]);
+
   return res
     .status(200)
     .json(new ApiResponce(200, "Studio videos fetched successfully", videos));
