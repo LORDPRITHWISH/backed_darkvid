@@ -506,12 +506,6 @@ const updateVideo = asyncHandeler(async (req, res) => {
     .json(new ApiResponce(200, "Video updated successfully", video));
 });
 
-const deleteVideo = asyncHandeler(async (req, res) => {
-  return res
-    .status(200)
-    .json(new ApiResponce(200, "Video deleted successfully", req.params.id));
-});
-
 const SuggestedVideos = asyncHandeler(async (req, res) => {
   // Video.find({ isPublished: true })
   //   .sort({ createdAt: -1 })
@@ -523,7 +517,7 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
   const userId = req.user.id;
 
   const videos = await Video.aggregate([
-    { $match: { isPublished: true, privacy: "public" } },
+    { $match: { isPublished: true, privacy: "public", deleted: false } },
     { $sample: { size: 30 } },
     {
       $lookup: {
@@ -541,28 +535,6 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
         as: "viewHistories",
       },
     },
-    // {
-    //   $lookup: {
-    //     from: "views",
-    //     let: { videoId: "$_id" },
-    //     pipeline: [
-    //       {
-    //         $match: {
-    //           $expr: {
-    //             $eq: ["$videoId", "$$videoId"],
-    //           },
-    //         },
-    //       },
-    //       // {
-    //       //   $group : {
-    //       //     _id : null,
-    //       //     viewers : { $addToSet : "$viewer" }
-    //       //   }
-    //       // }
-    //     ],
-    //     as: "viewsDataAll",
-    //   },
-    // },
     {
       $lookup: {
         from: "views",
@@ -672,15 +644,14 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
 });
 
 export const videoSpecificSuggestion = asyncHandeler(async (req, res) => {
-  // Video.find({ isPublished: true })
-  //   .sort({ createdAt: -1 })
-  //   .limit(10)
-  //   .then((videos) => {
+  const { videoId } = req.params;
 
-  //   });
+  console.log("The ID", videoId);
+
+  const userId = req.user.id;
 
   const videos = await Video.aggregate([
-    { $match: { isPublished: true, privacy: "public" } },
+    { $match: { isPublished: true, privacy: "public", deleted: false } },
     { $sample: { size: 30 } },
     {
       $lookup: {
@@ -691,12 +662,72 @@ export const videoSpecificSuggestion = asyncHandeler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "viewhistories",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "viewHistories",
+      },
+    },
+    {
+      $lookup: {
+        from: "views",
+        let: { videoId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$videoId", "$$videoId"] },
+                  {
+                    $eq: [
+                      "$viewerId",
+                      mongoose.Types.ObjectId.createFromHexString(userId),
+                      // viewerId,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          // {
+          //   $group : {
+          //     _id : null,
+          //     viewers : { $addToSet : "$viewer" }
+          //   }
+          // }
+        ],
+        as: "viewsData",
+      },
+    },
+    {
+      $addFields: {
+        totalViews: { $size: "$viewHistories" },
+        // uniqueViews: { $size: "$viewsData" },
+        hasViewed: { $gt: [{ $size: "$viewsData" }, 0] },
+        // completed: {
+        //   $cond: [
+        //     { $gt: [{ $size: "$viewsData" }, 0] },
+        //     { $arrayElemAt: ["$viewsData.completed", 0] },
+        //     false,
+        //   ],
+        // },
+        completed: {
+          $ifNull: [{ $first: "$viewsData.completed" }, false],
+        },
+        watchProgress: {
+          $ifNull: [{ $first: "$viewsData.lastPosition" }, 0],
+        },
+      },
+    },
+    {
       $unwind: "$ownerDetails",
     },
     {
       $project: {
         _id: 0,
         __v: 0,
+        status: 0,
         updatedAt: 0,
         isPublished: 0,
         owner: 0,
@@ -707,6 +738,8 @@ export const videoSpecificSuggestion = asyncHandeler(async (req, res) => {
         dislikes: 0,
         privacy: 0,
         comments: 0,
+        viewHistories: 0,
+        viewsData: 0,
 
         // createdAt: 0,
 
@@ -784,7 +817,12 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
   // }).lean();
 
   const videos = await Video.aggregate([
-    { $match: { owner: mongoose.Types.ObjectId.createFromHexString(userId) } },
+    {
+      $match: {
+        owner: mongoose.Types.ObjectId.createFromHexString(userId),
+        deleted: false,
+      },
+    },
     {
       $lookup: {
         from: "comments",
@@ -924,12 +962,36 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
   // .json(new ApiResponce(200, "Studio videos fetched successfully", []));
 });
 
+export const deleteVideo = asyncHandeler(async (req, res) => {
+  const videoId = req.params.id;
+  if (!videoId) {
+    return res.status(400).json(new ApiError(400, "Video ID is required"));
+  }
+
+  const video = await Video.findOne({ videoId });
+  if (!video) {
+    return res.status(404).json(new ApiError(404, "Video not found"));
+  }
+
+  if (video.owner.toString() !== req.user.id) {
+    return res
+      .status(403)
+      .json(new ApiError(403, "You are not the owner of this video"));
+  }
+
+  video.deleted = true;
+  await video.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video deleted successfully", videoId));
+});
+
 export {
   getVideo,
   updateVideo,
   userStudioVideos,
   // uploadVideo,
-  deleteVideo,
   SuggestedVideos,
   getVideoDetails,
   UsersVideos,

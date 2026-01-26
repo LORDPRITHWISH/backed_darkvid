@@ -53,6 +53,10 @@ const videoSchema = new Schema(
       enum: ["uploading", "completed", "failed"],
       default: "uploading",
     },
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
