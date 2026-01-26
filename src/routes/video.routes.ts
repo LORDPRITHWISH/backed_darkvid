@@ -21,12 +21,6 @@ import { verifyJwt } from "../middleware/auth.middleware";
 const router = Router();
 
 router.get("/", verifyJwt, SuggestedVideos);
-
-router.get("/:id", verifyJwt, getVideo);
-router.delete("/:id", verifyJwt, deleteVideo);
-
-router.get("/:videoId/related", verifyJwt, videoSpecificSuggestion);
-
 router.get("/setthumbnail/:videoId", verifyJwt, uploadThumbnail);
 
 router.get("/upload/initiate", verifyJwt, initVideoUpload);
@@ -36,11 +30,15 @@ router.post("/upload/complete", verifyJwt, completeVideoUpload);
 router.post("/setdata/:videoId", verifyJwt, updateVideo);
 
 router.get("/fetch/:videoId", verifyJwt, getPlaybackUrl);
-// router.put("/edit/:id", verifyJwt, updateVideo);
+
 router.get("/studio", verifyJwt, userStudioVideos);
 router.get("/user/:id", verifyJwt, UsersVideos);
 router.get("/details/:id", verifyJwt, getVideoDetails);
 
+router.get("/:id", verifyJwt, getVideo);
+router.delete("/:id", verifyJwt, deleteVideo);
+
+router.get("/:videoId/related", verifyJwt, videoSpecificSuggestion);
 
 
 export default router;
