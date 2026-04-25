@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import {
   completeMultipartUpload,
+  getObjectPublicUrl,
   getPresignedUrl,
   getVideoUrl,
   initMultipartUpload,
@@ -124,7 +125,7 @@ export const uploadThumbnail = asyncHandeler(async (req, res) => {
       throw new ApiError(404, "Video not found");
     }
 
-    const thumbnailURL = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    const thumbnailURL = getObjectPublicUrl(key);
 
     return res.status(200).json(
       new ApiResponce(200, "Thumbnail uploaded successfully", {
@@ -299,7 +300,9 @@ const getVideo = asyncHandeler(async (req, res) => {
   // console.log(playbackUrl);
 
   if (result.thumbnailID) {
-    result.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${result.thumbnailID}.jpg`;
+    result.thumbnailUrl = getObjectPublicUrl(
+      `thumbnails/${result.thumbnailID}.jpg`
+    );
     delete result.thumbnailID;
   }
 
@@ -461,7 +464,7 @@ const getVideoDetails = asyncHandeler(async (req, res) => {
   const playbackUrl = await getVideoUrl(`videos/${video.videoKey}.mp4`);
 
   const thumbnailUrl = video.thumbnailID
-    ? `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`
+    ? getObjectPublicUrl(`thumbnails/${video.thumbnailID}.jpg`)
     : null;
 
   const responce = { ...video.toObject(), playbackUrl, thumbnailUrl };
@@ -631,7 +634,9 @@ const SuggestedVideos = asyncHandeler(async (req, res) => {
 
   videos.forEach((video) => {
     if (video.thumbnailID) {
-      video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
+      video.thumbnailUrl = getObjectPublicUrl(
+        `thumbnails/${video.thumbnailID}.jpg`
+      );
     }
     delete video.thumbnailID;
   });
@@ -765,7 +770,9 @@ export const videoSpecificSuggestion = asyncHandeler(async (req, res) => {
 
   videos.forEach((video) => {
     if (video.thumbnailID) {
-      video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
+      video.thumbnailUrl = getObjectPublicUrl(
+        `thumbnails/${video.thumbnailID}.jpg`
+      );
     }
     delete video.thumbnailID;
   });
@@ -949,7 +956,9 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
 
   videos.forEach((video) => {
     if (video.thumbnailID) {
-      video.thumbnailUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/${video.thumbnailID}.jpg`;
+      video.thumbnailUrl = getObjectPublicUrl(
+        `thumbnails/${video.thumbnailID}.jpg`
+      );
     }
     delete video.thumbnailID;
   });

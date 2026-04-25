@@ -9,19 +9,68 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const s3 = new S3Client({
-  region: process.env.AWS_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+type StorageProvider = "aws" | "vultr";
 
-const BUCKET = process.env.S3_BUCKET!;
+const requiredEnv = (name: string) => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is not set`);
+  }
+  return value;
+};
 
-if (!BUCKET) {
-  throw new Error("S3_BUCKET environment variable is not set");
+const configuredProvider = process.env.OBJECT_STORAGE_PROVIDER?.toLowerCase();
+const provider: StorageProvider =
+  configuredProvider === "vultr" ? "vultr" : "aws";
+
+const awsRegion = process.env.AWS_REGION || "us-east-1";
+const vultrHostname =
+  process.env.VULTR_HOSTNAME || "";
+
+if (provider === "vultr" && !vultrHostname) {
+  throw new Error("VULTR_HOSTNAME environment variable is not set");
 }
+
+const BUCKET =
+  provider === "vultr" ? requiredEnv("VULTR_BUCKET") : requiredEnv("S3_BUCKET");
+
+const s3 = new S3Client(
+  provider === "vultr"
+    ? {
+        region: awsRegion,
+        endpoint: `https://${vultrHostname}`,
+        forcePathStyle: false,
+        credentials: {
+          accessKeyId: requiredEnv("VULTR_ACCESS_KEY"),
+          secretAccessKey: requiredEnv("VULTR_SECRET_KEY"),
+        },
+      }
+    : {
+        region: requiredEnv("AWS_REGION"),
+        credentials: {
+          accessKeyId: requiredEnv("AWS_ACCESS_KEY_ID"),
+          secretAccessKey: requiredEnv("AWS_SECRET_ACCESS_KEY"),
+        },
+      }
+);
+
+const objectPublicBaseUrl =
+  provider === "vultr"
+    ? `https://${BUCKET}.${vultrHostname}`
+    : `https://${BUCKET}.s3.${requiredEnv("AWS_REGION")}.amazonaws.com`;
+
+if (
+  configuredProvider &&
+  configuredProvider !== "aws" &&
+  configuredProvider !== "vultr"
+) {
+  console.warn(
+    `Unsupported OBJECT_STORAGE_PROVIDER "${configuredProvider}", defaulting to "aws".`
+  );
+}
+
+export const getObjectPublicUrl = (key: string) =>
+  `${objectPublicBaseUrl}/${key}`;
 
 export async function initMultipartUpload(key: string, contentType: string) {
   const command = new CreateMultipartUploadCommand({
@@ -34,7 +83,7 @@ export async function initMultipartUpload(key: string, contentType: string) {
 
   return {
     uploadId: resp.UploadId!,
-    videoUrl: `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+    videoUrl: getObjectPublicUrl(key),
   };
 }
 
