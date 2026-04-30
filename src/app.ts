@@ -15,6 +15,7 @@ import studioRoute from "./routes/studio.routes.js";
 import tweetRouter from "./routes/tweet.routes.js";
 import likeRouter from "./routes/like.routes.js";
 import viewRoter from "./routes/view.routes";
+import authRouter from "./routes/auth.routes";
 
 const app = express();
 
@@ -48,11 +49,12 @@ app.use("/api/v1/video", videoRouter);
 app.use("/api/v1/comment", commentRouter);
 app.use("/api/v1/sub", SubscriptionRoute);
 app.use("/api/v1/action", actionRoute);
-app.use("/api/v1/playlist", playlistRoute);
+app.use("/api/v1/playlist", playlistRoute);``
 app.use("/api/v1/studio", studioRoute);
 app.use("/api/v1/tweet", tweetRouter);
 app.use("/api/v1/like", likeRouter);
 app.use("/api/v1/view", viewRoter);
+app.use("/api/v1/auth",authRouter)
 
 // Error handling middleware
 

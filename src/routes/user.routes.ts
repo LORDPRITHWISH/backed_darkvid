@@ -9,7 +9,6 @@ import {
   updateDetails,
   updateAvator,
   changeCoverImage,
-  getUserWatchHistory,
   avalableUsername,
 } from "../controllers/user.controller";
 import { upload } from "../middleware/multer.middleware";
@@ -53,6 +52,5 @@ router
 router
   .route("/cover")
   .patch(verifyJwt, upload.single("coverimage"), changeCoverImage);
-router.route("/history").get(verifyJwt, getUserWatchHistory);
 
 export default router;

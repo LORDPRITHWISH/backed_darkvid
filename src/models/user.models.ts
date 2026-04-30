@@ -2,7 +2,6 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-
 const userSchema = new Schema(
   {
     username: {
@@ -23,8 +22,11 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      // required: [true, "Password is required"],
       trim: true,
+    },
+    authProviders: {
+      googleId: String,
     },
     name: {
       type: String,
@@ -38,7 +40,7 @@ const userSchema = new Schema(
     profilepic: {
       type: String,
       default:
-        "https://res.cloudinary.com/dxkufsejm/image/upload/v1631023531/blank-profile-picture-973460_640_ewxv2f.png",
+        "https://res.cloudinary.com/dvc3yzzhf/image/upload/v1777546096/e5tmjgygwh8zffoibujr.jpg",
       required: true,
     },
     bio: {
@@ -48,16 +50,10 @@ const userSchema = new Schema(
     coverimage: {
       type: String,
       default:
-        "https://res.cloudinary.com/dxkufsejm/image/upload/v1631023531/blank-profile-picture-973460_640_ewxv2f.png",
+        "https://res.cloudinary.com/dvc3yzzhf/image/upload/v1777549658/n3rwe2rqx2dqnvhffc3d.jpg",
       required: true,
     },
-    watchHistory: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Video",
-      },
-    ],
-    refereshToken: {
+    refreshToken: {
       type: String,
       default: "",
     },
@@ -78,7 +74,7 @@ const userSchema = new Schema(
 );
 
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password") || !this.password) return next();
 
   this.password = await bcrypt.hash(this.password, 10);
 

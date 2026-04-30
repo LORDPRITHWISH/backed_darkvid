@@ -5,12 +5,13 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { deleteFile, uploadFile } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
+
 // import { Subscription } from "../models/subscription.models";
 // import fs from "fs/promises";
 
-const genetateAccessAnsRefreshToken = async (userId: string) => {
+export const genetateAccessAnsRefreshToken = async (userId: string) => {
   try {
-    const user = await User.findById(userId).select("-password -refereshToken");
+    const user = await User.findById(userId).select("-password -refreshToken");
     // console.log(user);
     if (!user) {
       throw new ApiError(500, "User not found");
@@ -22,7 +23,7 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
     // console.log("accessToken", accessToken);
     // console.log("refreshToken", refreshToken);
 
-    user.refereshToken = refreshToken;
+    user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
     return { accessToken, refreshToken };
@@ -37,10 +38,9 @@ const genetateAccessAnsRefreshToken = async (userId: string) => {
 const registerUser = asyncHandeler(async (req, res) => {
   console.log("FILES RECEIVED:", req.files);
 
-
   const { fullname, email, username, password } = req.body;
 
-  console.log("the Body",req.body)
+  console.log("the Body", req.body);
 
   if (
     [fullname, email, username, password].some(
@@ -87,21 +87,6 @@ const registerUser = asyncHandeler(async (req, res) => {
     throw new ApiError(500, "Profile pic not uploaded");
   }
 
-  // if (profilepiclocal) {
-  //   try {
-  //     await fs.unlink(profilepiclocal);
-  //   } catch (err) {
-  //     console.error("Failed to delete local profile pic:", err);
-  //   }
-  // }
-
-  // if (coverimagelocal) {
-  //   try {
-  //     await fs.unlink(coverimagelocal);
-  //   } catch (err) {
-  //     console.error("Failed to delete local cover image:", err);
-  //   }
-  // }
 
   try {
     const user = await User.create({
@@ -114,7 +99,7 @@ const registerUser = asyncHandeler(async (req, res) => {
     });
 
     const createdUser = await User.findById(user._id).select(
-      "-password -refereshToken"
+      "-password -refreshToken"
     );
     console.log(createdUser);
 
@@ -162,6 +147,10 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
+  if (!user.password) {
+    throw new ApiError(400, "No password set. Use Google login.");
+  }
+
   // console.log("user found", user);
 
   const isPasswordValid = await user.isPasswordCorrect(password);
@@ -177,7 +166,7 @@ const loginUser = asyncHandeler(async (req, res) => {
   );
 
   const loggedInUser = await User.findById(user._id).select(
-    "-password -refereshToken"
+    "-password -refreshToken"
   );
 
   // console.log("loggedInUser", loggedInUser);
@@ -251,7 +240,7 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
 
     if (typeof decodedToken !== "string" && decodedToken?._id) {
       const user = await User.findById(decodedToken._id).select(
-        // "-password -refereshToken"
+        // "-password -refreshToken"
         "-password "
       );
 
@@ -261,7 +250,7 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
         throw new ApiError(404, "Invalid token as user not found");
       }
 
-      if (user?.refereshToken !== incomingRefreshToken) {
+      if (user?.refreshToken !== incomingRefreshToken) {
         throw new ApiError(401, "Invalid token did not match");
       }
 
@@ -364,7 +353,7 @@ const updateDetails = asyncHandeler(async (req, res) => {
     },
     { new: true, runValidators: true }
   )
-    .select("-password -refereshToken")
+    .select("-password -refreshToken")
     .then((updatedUser) => {
       if (!updatedUser) {
         throw new ApiError(404, "User not found");
@@ -407,7 +396,7 @@ const updateAvator = asyncHandeler(async (req, res) => {
     req.user._id,
     { $set: { profilepic: profilepiccl.url } },
     { new: true, runValidators: true }
-  ).select("-password -refereshToken");
+  ).select("-password -refreshToken");
 
   if (!updatedUser) {
     throw new ApiError(404, "User not found");
@@ -451,7 +440,7 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
     req.user._id,
     { $set: { coverimage: coverimagecl.url } },
     { new: true, runValidators: true }
-  ).select("-password -refereshToken");
+  ).select("-password -refreshToken");
 
   if (!updatedUser) {
     throw new ApiError(404, "User not found");
@@ -538,68 +527,6 @@ const getUserChannel = asyncHandeler(async (req, res) => {
     .json(new ApiResponce(200, "Channel fetched successfully", channel[0]));
 });
 
-const getUserWatchHistory = asyncHandeler(async (req, res) => {
-  const user = await User.aggregate([
-    { $match: { _id: new mongoose.Types.ObjectId(req.user?._id) } },
-    {
-      $lookup: {
-        from: "Video",
-        localField: "watchHistory",
-        foreignField: "_id",
-        as: "watchHistory",
-        pipeline: [
-          {
-            $lookup: {
-              from: "User",
-              localField: "uploader",
-              foreignField: "_id",
-              as: "uploader",
-              pipeline: [
-                {
-                  $project: {
-                    _id: 1,
-                    username: 1,
-                    name: 1,
-                    profilepic: 1,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $unwind: "$uploader",
-          },
-          {
-            $project: {
-              title: 1,
-              description: 1,
-              thumbnail: 1,
-              videoUrl: 1,
-              uploader: {
-                _id: "$uploader._id",
-                username: "$uploader.username",
-                name: "$uploader.name",
-                profilepic: "$uploader.profilepic",
-              },
-              createdAt: 1,
-            },
-          },
-        ],
-      },
-    },
-  ]);
-
-  if (!user || user.length === 0) {
-    throw new ApiError(404, "User not found");
-  }
-
-  return res
-    .status(200)
-    .json(
-      new ApiResponce(200, "User watch history fetched", user[0].watchHistory)
-    );
-});
-
 export const avalableUsername = asyncHandeler(async (req, res) => {
   const { username } = req.params;
 
@@ -618,7 +545,6 @@ export const avalableUsername = asyncHandeler(async (req, res) => {
       .status(200)
       .json(new ApiResponce(200, "Username is available", { available: true }));
   }
-
 });
 
 export {
@@ -632,5 +558,4 @@ export {
   updateAvator,
   changeCoverImage,
   getUserChannel,
-  getUserWatchHistory,
 };
