@@ -16,6 +16,7 @@ import tweetRouter from "./routes/tweet.routes.js";
 import likeRouter from "./routes/like.routes.js";
 import viewRoter from "./routes/view.routes";
 import authRouter from "./routes/auth.routes";
+import feedRouter from "./routes/feed.routes.js";
 
 const app = express();
 
@@ -29,13 +30,6 @@ app.use(
 );
 
 
-// app.use(
-//   cors({
-//     origin: process.env.CORS_ORIGIN,
-//     credentials: true,
-//   })
-// );
-
 app.use(cookieParser());
 
 //common middlewares
@@ -44,17 +38,18 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 
 app.use("/api/v1/healthcheak", healthcheakrouter);
-app.use("/api/v1/users", userrouter);
+app.use("/api/v1/user", userrouter);
 app.use("/api/v1/video", videoRouter);
 app.use("/api/v1/comment", commentRouter);
 app.use("/api/v1/sub", SubscriptionRoute);
 app.use("/api/v1/action", actionRoute);
 app.use("/api/v1/playlist", playlistRoute);``
-app.use("/api/v1/studio", studioRoute);
 app.use("/api/v1/tweet", tweetRouter);
 app.use("/api/v1/like", likeRouter);
 app.use("/api/v1/view", viewRoter);
 app.use("/api/v1/auth",authRouter)
+app.use("/api/v1/studio", studioRoute);
+app.use("/api/v1/feed", feedRouter);
 
 // Error handling middleware
 
