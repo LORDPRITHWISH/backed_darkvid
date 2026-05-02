@@ -17,6 +17,7 @@ import likeRouter from "./routes/like.routes.js";
 import viewRoter from "./routes/view.routes";
 import authRouter from "./routes/auth.routes";
 import feedRouter from "./routes/feed.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use("/api/v1/view", viewRoter);
 app.use("/api/v1/auth",authRouter)
 app.use("/api/v1/studio", studioRoute);
 app.use("/api/v1/feed", feedRouter);
+app.use("/api/v1/admin", adminRouter)
 
 // Error handling middleware
 

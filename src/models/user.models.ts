@@ -19,11 +19,17 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
       index: true,
-    },
+    },  
     password: {
       type: String,
-      // required: [true, "Password is required"],
       trim: true,
+      // select: false,
+      required: [
+        function () {
+          return !this.authProviders?.googleId;
+        },
+        "Password is required when not using social login",
+      ],
     },
     authProviders: {
       googleId: String,
@@ -47,6 +53,11 @@ const userSchema = new Schema(
       type: String,
       default: "a happy user",
     },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
     coverimage: {
       type: String,
       default:
@@ -58,10 +69,6 @@ const userSchema = new Schema(
       default: "",
     },
     isVerified: {
-      type: Boolean,
-      default: false,
-    },
-    isAdmin: {
       type: Boolean,
       default: false,
     },
@@ -90,14 +97,12 @@ userSchema.methods.generateAccessToken = function () {
     throw new Error("ACCESS_TOKEN_SECRET is not defined");
   }
 
-  console.log("generating access token for user", this.username);
-
   return jwt.sign(
     {
       _id: this._id,
       email: this.email,
       username: this.username,
-      name: this.name,
+      role: this.role,
     },
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: "1d" }

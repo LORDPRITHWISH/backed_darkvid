@@ -147,6 +147,8 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
+  console.log("user :- ", user);
+
   if (!user.password) {
     throw new ApiError(400, "No password set. Use Google login.");
   }
