@@ -1140,3 +1140,856 @@ export const GetVideo = asyncHandeler(async (req, res) => {
 });
 
 export const getVideo = GetVideo;
+
+export const GetUserVideos = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const matchStage: any = { owner: userId };
+  if (search && typeof search === 'string') {
+    matchStage.$or = [
+      { title: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: matchStage },
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          ...videoSummaryStages(false),
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const videos = await Video.aggregate(pipeline);
+  const result = videos[0];
+  if (result && result.data) {
+    result.data.forEach((video: any) => {
+      if (video.thumbnailID) {
+        video.thumbnailUrl = getObjectPublicUrl(
+          `thumbnails/${video.thumbnailID}.jpg`
+        );
+      }
+    });
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User videos fetched successfully", videos));
+});
+
+export const GetUserSubscribers = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const pipeline: PipelineStage[] = [
+    { $match: { subscribedTo: userId } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "subscriber",
+        foreignField: "_id",
+        as: "subscriberDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$subscriberDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { "subscriberDetails.username": { $regex: search, $options: "i" } },
+          { "subscriberDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const subscribers = await mongoose.model("Subscription").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User subscribers fetched successfully", subscribers));
+});
+
+export const GetUserSubscriptions = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const pipeline: PipelineStage[] = [
+    { $match: { subscriber: userId } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "subscribedTo",
+        foreignField: "_id",
+        as: "subscribedToDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$subscribedToDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { "subscribedToDetails.username": { $regex: search, $options: "i" } },
+          { "subscribedToDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const subscriptions = await mongoose.model("Subscription").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User subscriptions fetched successfully", subscriptions));
+});
+
+export const GetVideoPlayableUrl = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    throw new ApiError(400, "Video id is required");
+  }
+
+  const video = await Video.findOne(videoMatchById(id));
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
+
+  const playableUrl = getObjectPublicUrl(video.videoKey);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video playable URL fetched successfully", { playableUrl }));
+});
+
+export const GetVideoLikes = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "Video id is required");
+  }
+  
+  // Try treating id as a valid ObjectId first or fallback to querying Video by videoId
+  let videoId: mongoose.Types.ObjectId;
+  if (mongoose.isValidObjectId(id)) {
+    videoId = mongoose.Types.ObjectId.createFromHexString(id);
+  } else {
+    const video = await Video.findOne({ videoId: id });
+    if (!video) {
+      throw new ApiError(404, "Video not found");
+    }
+    videoId = video._id as mongoose.Types.ObjectId;
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: { videoId: videoId, mode: "like" } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "originator",
+        foreignField: "_id",
+        as: "originatorDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$originatorDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { "originatorDetails.username": { $regex: search, $options: "i" } },
+          { "originatorDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const likes = await mongoose.model("Like").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video likes fetched successfully", likes));
+});
+
+export const GetVideoDislikes = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "Video id is required");
+  }
+  
+  let videoId: mongoose.Types.ObjectId;
+  if (mongoose.isValidObjectId(id)) {
+    videoId = mongoose.Types.ObjectId.createFromHexString(id);
+  } else {
+    const video = await Video.findOne({ videoId: id });
+    if (!video) {
+      throw new ApiError(404, "Video not found");
+    }
+    videoId = video._id as mongoose.Types.ObjectId;
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: { videoId: videoId, mode: "dislike" } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "originator",
+        foreignField: "_id",
+        as: "originatorDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$originatorDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { "originatorDetails.username": { $regex: search, $options: "i" } },
+          { "originatorDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const dislikes = await mongoose.model("Like").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video dislikes fetched successfully", dislikes));
+});
+
+export const GetVideoComments = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "Video id is required");
+  }
+  
+  let videoId: mongoose.Types.ObjectId;
+  if (mongoose.isValidObjectId(id)) {
+    videoId = mongoose.Types.ObjectId.createFromHexString(id);
+  } else {
+    const video = await Video.findOne({ videoId: id });
+    if (!video) {
+      throw new ApiError(404, "Video not found");
+    }
+    videoId = video._id as mongoose.Types.ObjectId;
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: { videoId: videoId } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "originator",
+        foreignField: "_id",
+        as: "originatorDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$originatorDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { content: { $regex: search, $options: "i" } },
+          { "originatorDetails.username": { $regex: search, $options: "i" } },
+          { "originatorDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const comments = await mongoose.model("Comment").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "Video comments fetched successfully", comments));
+});
+
+export const GetVideoViewers = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "Video id is required");
+  }
+  
+  let videoId: mongoose.Types.ObjectId;
+  if (mongoose.isValidObjectId(id)) {
+    videoId = mongoose.Types.ObjectId.createFromHexString(id);
+  } else {
+    const video = await Video.findOne({ videoId: id });
+    if (!video) {
+      throw new ApiError(404, "Video not found");
+    }
+    videoId = video._id as mongoose.Types.ObjectId;
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: { videoId: videoId } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "viewerId",
+        foreignField: "_id",
+        as: "viewerDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              channelname: 1,
+              profilepic: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$viewerDetails",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+  ];
+
+  if (search && typeof search === 'string') {
+    pipeline.push({
+      $match: {
+        $or: [
+          { "viewerDetails.username": { $regex: search, $options: "i" } },
+          { "viewerDetails.name": { $regex: search, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { viewedAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    }
+  );
+
+  const viewers = await mongoose.model("ViewHistory").aggregate(pipeline);
+
+  return res
+    .json(new ApiResponce(200, "Video viewers fetched successfully", viewers));
+});
+
+export const GetUserLikedVideos = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const pipeline: PipelineStage[] = [
+    { $match: { originator: userId, mode: "like", videoId: { $exists: true } } },
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "videos",
+              localField: "videoId",
+              foreignField: "_id",
+              as: "videoDetails",
+              pipeline: videoSummaryStages(false),
+            },
+          },
+          { $unwind: "$videoDetails" },
+          { $replaceRoot: { newRoot: "$videoDetails" } },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const videos = await mongoose.model("Like").aggregate(pipeline);
+  const result = videos[0];
+  if (result && result.data) {
+    result.data.forEach((video: any) => {
+      if (video.thumbnailID) {
+        video.thumbnailUrl = getObjectPublicUrl(
+          `thumbnails/${video.thumbnailID}.jpg`
+        );
+      }
+    });
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User liked videos fetched successfully", videos));
+});
+
+export const GetUserDislikedVideos = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const pipeline: PipelineStage[] = [
+    { $match: { originator: userId, mode: "dislike", videoId: { $exists: true } } },
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "videos",
+              localField: "videoId",
+              foreignField: "_id",
+              as: "videoDetails",
+              pipeline: videoSummaryStages(false),
+            },
+          },
+          { $unwind: "$videoDetails" },
+          { $replaceRoot: { newRoot: "$videoDetails" } },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const videos = await mongoose.model("Like").aggregate(pipeline);
+  const result = videos[0];
+  if (result && result.data) {
+    result.data.forEach((video: any) => {
+      if (video.thumbnailID) {
+        video.thumbnailUrl = getObjectPublicUrl(
+          `thumbnails/${video.thumbnailID}.jpg`
+        );
+      }
+    });
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User disliked videos fetched successfully", videos));
+});
+
+export const GetUserComments = asyncHandeler(async (req, res) => {
+  const { id } = req.params;
+  const { search } = req.query;
+  const { page, limit, skip } = getPagination(req.query);
+
+  if (!id) {
+    throw new ApiError(400, "User id is required");
+  }
+  const userId = toObjectId(id, "user id");
+
+  const matchStage: any = { originator: userId };
+  if (search && typeof search === "string") {
+    matchStage.content = { $regex: search, $options: "i" };
+  }
+
+  const pipeline: PipelineStage[] = [
+    { $match: matchStage },
+    {
+      $facet: {
+        data: asFacetPipeline([
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "videos",
+              localField: "videoId",
+              foreignField: "_id",
+              as: "videoDetails",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    title: 1,
+                    videoId: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $unwind: {
+              path: "$videoDetails",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+        ]),
+        total: [{ $count: "count" }],
+      },
+    },
+    {
+      $project: {
+        data: 1,
+        total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+        page: { $literal: page },
+        limit: { $literal: limit },
+        totalPages: {
+          $ceil: {
+            $divide: [
+              { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+              limit,
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const comments = await mongoose.model("Comment").aggregate(pipeline);
+
+  return res
+    .status(200)
+    .json(new ApiResponce(200, "User comments fetched successfully", comments));
+});

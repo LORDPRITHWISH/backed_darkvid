@@ -282,7 +282,6 @@ const getVideo = asyncHandeler(async (req, res) => {
     },
   ]);
 
-  console.log("the Video", video);
 
   const result = video[0];
 
@@ -960,7 +959,6 @@ const userStudioVideos = asyncHandeler(async (req, res) => {
     delete video.thumbnailID;
   });
 
-  console.log("the video", videos[0]);
 
   return res
     .status(200)
