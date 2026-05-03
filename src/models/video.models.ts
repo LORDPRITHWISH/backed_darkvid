@@ -27,10 +27,6 @@ const videoSchema = new Schema(
     tags: {
       type: [String],
     },
-    views: {
-      type: Number,
-      default: 0,
-    },
     privacy: {
       type: String,
       enum: ["public", "private", "unlisted"],

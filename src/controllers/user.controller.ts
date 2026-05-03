@@ -5,6 +5,8 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { deleteFile, uploadFile } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
+import { UAParser } from "ua-parser-js";
+import { Session } from "../models/sesson.models";
 
 // import { Subscription } from "../models/subscription.models";
 // import fs from "fs/promises";
@@ -147,7 +149,7 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  console.log("user :- ", user);
+  // console.log("user :- ", user);
 
   if (!user.password) {
     throw new ApiError(400, "No password set. Use Google login.");
@@ -166,6 +168,24 @@ const loginUser = asyncHandeler(async (req, res) => {
   const { accessToken, refreshToken } = await genetateAccessAnsRefreshToken(
     user._id
   );
+
+  // Track session details
+  const userAgentString = req.headers["user-agent"] || "";
+  const parser = new UAParser(userAgentString);
+  const result = parser.getResult();
+  const ipAddress = (req.headers["x-forwarded-for"] || req.ip || "").toString();
+
+  await Session.create({
+    user: user._id,
+    refreshToken,
+    ipAddress,
+    userAgent: userAgentString,
+    browser: result.browser.name,
+    browserVersion: result.browser.version,
+    os: result.os.name,
+    osVersion: result.os.version,
+    device: result.device.type || "Desktop",
+  });
 
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -203,6 +223,14 @@ const logoutUser = asyncHandeler(async (req, res) => {
     { $set: { refreshToken: undefined } },
     { new: true }
   );
+
+  const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+  if (incomingRefreshToken) {
+    await Session.findOneAndUpdate(
+      { user: req.user._id, refreshToken: incomingRefreshToken },
+      { $set: { isActive: false, logoutAt: new Date() } }
+    );
+  }
 
   const options = {
     httpOnly: true,
