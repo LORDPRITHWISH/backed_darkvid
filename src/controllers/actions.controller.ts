@@ -38,7 +38,5 @@ const value = await redisClient.hGetAll("dark");
 });
 
 export {
-  GetAllUsers,
-  GetUser,
   Test
 }

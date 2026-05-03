@@ -1,7 +1,7 @@
 import { Router } from 'express';
 
 import { verifyJwt } from '../middleware/auth.middleware.js';
-import { GetAllUsers, GetUser, Test } from '../controllers/actions.controller.js';
+import { Test } from '../controllers/actions.controller.js';
 
 const router = Router();
 
