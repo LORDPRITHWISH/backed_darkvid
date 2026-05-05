@@ -236,8 +236,6 @@ const logoutUser = asyncHandeler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandeler(async (req, res) => {
-  // console.log("Cookies received:", req.cookies);
-  // console.log("Body received:", req.body);
 
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
@@ -256,7 +254,6 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
 
     const decodedToken = jwt.verify(incomingRefreshToken, refreshTokenSecret);
 
-    console.log("Decoded token:", decodedToken);
 
     if (typeof decodedToken !== "string" && decodedToken?._id) {
       const user = await User.findById(decodedToken._id).select(
@@ -264,7 +261,6 @@ const refreshAccessToken = asyncHandeler(async (req, res) => {
         "-password "
       );
 
-      // console.log("User found:", user);
 
       if (!user) {
         throw new ApiError(404, "Invalid token as user not found");
@@ -444,7 +440,6 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
   let coverimagecl;
   try {
     coverimagecl = await uploadToCloudinary(coverimageBuffer, "coverimage");
-    console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Cover image not uploaded");

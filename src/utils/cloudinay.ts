@@ -20,47 +20,38 @@ type UploadResult = {
   public_id: string;
 };
 
-export const uploadToCloudinary = (
+export const uploadToCloudinary = async (
   fileBuffer: Buffer,
   folder: string = "general"
 ): Promise<UploadResult> => {
-  return new Promise((resolve, reject) => {
-    // Re-apply config before upload to ensure credentials are set
+  try {
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
 
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: `darkvid/uploads/${folder}`,
-        resource_type: "image", // 👈 force stability
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET,
-      },
-      (error, result) => {
-        if (error) {
-          console.error("Cloudinary upload error:", error);
-          return reject(error);
-        }
+    // Convert buffer to base64 Data URI to bypass broken stream chunking in Cloudinary SDK
+    const b64 = fileBuffer.toString("base64");
+    const dataURI = "data:image/auto;base64," + b64;
 
-        if (!result) {
-          return reject(new Error("Upload failed: no result"));
-        }
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: `darkvid/uploads/${folder}`,
+      resource_type: "auto",
+    });
 
-        resolve({
-          secure_url: result.secure_url,
-          public_id: result.public_id,
-        });
-      }
-    );
+    if (!result) {
+      throw new Error("Upload failed: no result");
+    }
 
-    Readable.from(fileBuffer).pipe(stream);
-  });
+    return {
+      secure_url: result.secure_url,
+      public_id: result.public_id,
+    };
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    throw error;
+  }
 };
 
 export const deleteFromCloudinary = async (publicId: string) => {
