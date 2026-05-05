@@ -2,7 +2,6 @@ import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import { ApiError } from "../utils/ApiError";
 import { Video } from "../models/video.models";
-import { uploadFile, deleteFile } from "../utils/cloudinay";
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -788,16 +787,53 @@ const UsersVideos = asyncHandeler(async (req, res) => {
 
   console.log("Fetching videos for user ID:", userId);
 
-  const videos = await Video.find({ owner: userId }).select({
-    __v: 0,
-    updatedAt: 0,
-    isPublished: 0,
-    owner: 0,
-    tags: 0,
-    description: 0,
-    dislikes: 0,
-    comments: 0,
+  const videos = await Video.aggregate([
+    {
+      $match: {
+        owner: mongoose.Types.ObjectId.createFromHexString(userId),
+        isPublished: true,
+        privacy: "public",
+        deleted: false,
+      },
+    },
+    {
+      $lookup: {
+        from: "viewhistories",
+        localField: "_id",
+        foreignField: "videoId",
+        as: "viewHistories",
+      },
+    },
+    {
+      $addFields: {
+        totalViews: { $size: "$viewHistories" },
+      },
+    },
+    {
+      $project: {
+        __v: 0,
+        updatedAt: 0,
+        owner: 0,
+        tags: 0,
+        description: 0,
+        dislikes: 0,
+        comments: 0,
+        viewHistories: 0,
+        videoKey: 0,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  videos.forEach((video) => {
+    if (video.thumbnailID) {
+      video.thumbnailUrl = getObjectPublicUrl(
+        `thumbnails/${video.thumbnailID}.jpg`
+      );
+    }
+    delete video.thumbnailID;
   });
+
   return res
     .status(200)
     .json(new ApiResponce(200, "User's videos fetched successfully", videos));

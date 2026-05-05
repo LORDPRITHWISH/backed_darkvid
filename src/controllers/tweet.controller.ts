@@ -26,58 +26,47 @@ const createTweet = asyncHandeler(async (req, res) => {
 });
 
 const getUserTweets = asyncHandeler(async (req, res) => {
-  // TODO: get user tweets
-  const tweets = await Tweet.find({ originator: req.user.id });
+  const { userId } = req.params;
 
-  //   const tweets = await Tweet.aggregate([
-  //     { $match: { originator: new mongoose.Types.ObjectId(req.params.userId) } },
-  //     {
-  //       $lookup: {
-  //         from: "users",
-  //         localField: "originator",
-  //         foreignField: "_id",
-  //         as: "originator",
-  //       },
-  //     },
-  //     { $unwind: "$originator" },
-  //     {
-  //       $lookup: {
-  //         from: "likes",
-  //         let: { tweetId: "$_id" },
-  //         pipeline: [
-  //           {
-  //             $match: {
-  //               $expr: {
-  //                 $and: [
-  //                   { $eq: ["$likeableId", "$$tweetId"] },
-  //                   { $eq: ["$onModel", "Tweet"] },
-  //                 ],
-  //               },
-  //             },
-  //           },
-  //           { $count: "count" },
-  //         ],
-  //         as: "likes",
-  //       },
-  //     },
-  //     {
-  //       $addFields: {
-  //         likesCount: { $ifNull: [{ $arrayElemAt: ["$likes.count", 0] }, 0] },
-  //       },
-  //     },
-  //     {
-  //       $project: {
-  //         content: 1,
-  //         createdAt: 1,
-  //         updatedAt: 1,
-  //         "originator._id": 1,
-  //         "originator.username": 1,
-  //         "originator.name": 1,
-  //         "originator.avatar": 1,
-  //       },
-  //     },
-  //     { $sort: { createdAt: -1 } },
-  //   ]);
+  const targetUserId = userId || req.user.id;
+
+  if (!isValidObjectId(targetUserId)) {
+    throw new ApiError(400, "Invalid user ID");
+  }
+
+  const tweets = await Tweet.aggregate([
+    {
+      $match: {
+        originator: new mongoose.Types.ObjectId(targetUserId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "originator",
+        foreignField: "_id",
+        as: "originatorDetails",
+      },
+    },
+    { $unwind: "$originatorDetails" },
+    {
+      $project: {
+        title: 1,
+        content: 1,
+        featuredImage: 1,
+        featuredVideo: 1,
+        likes: 1,
+        retweets: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        "originatorDetails._id": 1,
+        "originatorDetails.username": 1,
+        "originatorDetails.name": 1,
+        "originatorDetails.profilepic": 1,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
 
   return res
     .status(200)

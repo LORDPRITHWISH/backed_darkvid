@@ -3,13 +3,30 @@ import { User } from "../models/user.models";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
-import { deleteFile, uploadFile } from "../utils/cloudinay";
+import {
+  deleteFile,
+  uploadFile,
+} from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
 import { UAParser } from "ua-parser-js";
 import { Session } from "../models/sesson.models";
 
-// import { Subscription } from "../models/subscription.models";
-// import fs from "fs/promises";
+// const DEFAULT_PROFILEPIC_PUBLIC_ID = "e5tmjgygwh8zffoibujr";
+// const DEFAULT_COVERIMAGE_PUBLIC_ID = "n3rwe2rqx2dqnvhffc3d";
+
+// const deletePreviousUserImage = async (
+//   assetUrl: string | undefined,
+//   defaultPublicId: string
+// ) => {
+//   if (!assetUrl) return;
+
+//   const publicId = getCloudinaryPublicId(assetUrl);
+
+//   if (publicId === defaultPublicId) return;
+//   if (assetUrl.startsWith("http") && publicId === assetUrl) return;
+
+//   await deleteFile(publicId);
+// };
 
 export const genetateAccessAnsRefreshToken = async (userId: string) => {
   try {
@@ -74,7 +91,7 @@ const registerUser = asyncHandeler(async (req, res) => {
   let coverimagecl;
 
   try {
-    if (coverimagelocal) coverimagecl = await uploadFile(coverimagelocal);
+    if (coverimagelocal) coverimagecl = await uploadFile(coverimagelocal, "channelcover");
     console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
@@ -82,7 +99,7 @@ const registerUser = asyncHandeler(async (req, res) => {
   }
 
   try {
-    if (profilepiclocal) profilepiccl = await uploadFile(profilepiclocal);
+    if (profilepiclocal) profilepiccl = await uploadFile(profilepiclocal,"profilepic");
     console.log("profilepic uploaded", profilepiccl);
   } catch (error) {
     console.log(error);
@@ -405,26 +422,29 @@ const updateAvator = asyncHandeler(async (req, res) => {
 
   const profilepiclocal = req.file?.path;
 
+  console.log("profilepic file", req.file);
+  console.log("profilepic path", profilepiclocal);
+
   if (!profilepiclocal) {
     throw new ApiError(400, "Profile picture is required");
   }
 
   let profilepiccl;
   try {
-    profilepiccl = await uploadFile(profilepiclocal);
+    profilepiccl = await uploadFile(profilepiclocal, "profilepic");
     console.log("profilepic uploaded", profilepiccl);
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Profile pic not uploaded");
   }
 
-  if (!profilepiccl?.url) {
+  if (!profilepiccl?.secure_url) {
     throw new ApiError(500, "Profile picture upload failed");
   }
 
   const updatedUser = await User.findByIdAndUpdate(
     req.user._id,
-    { $set: { profilepic: profilepiccl.url } },
+    { $set: { profilepic: profilepiccl.secure_url } },
     { new: true, runValidators: true }
   ).select("-password -refreshToken");
 
@@ -432,14 +452,19 @@ const updateAvator = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
+  console.log("sucess")
+
   // Delete the old profile picture if it exists
-  if (req.user.profilepic) {
-    try {
-      await deleteFile(req.user.profilepic);
-    } catch (error) {
-      console.error("Error deleting old profile picture:", error);
-    }
-  }
+  // if (req.user.profilepic) {
+  //   try {
+  //     await deletePreviousUserImage(
+  //       req.user.profilepic,
+  //       DEFAULT_PROFILEPIC_PUBLIC_ID
+  //     );
+  //   } catch (error) {
+  //     console.error("Error deleting old profile picture:", error);
+  //   }
+  // }
 
   return res
     .status(200)
@@ -455,20 +480,20 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
 
   let coverimagecl;
   try {
-    coverimagecl = await uploadFile(coverimagelocal);
+    coverimagecl = await uploadFile(coverimagelocal, "coverimage");
     console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Cover image not uploaded");
   }
 
-  if (!coverimagecl?.url) {
+  if (!coverimagecl?.secure_url) {
     throw new ApiError(500, "Cover image upload failed");
   }
 
   const updatedUser = await User.findByIdAndUpdate(
     req.user._id,
-    { $set: { coverimage: coverimagecl.url } },
+    { $set: { coverimage: coverimagecl.secure_url } },
     { new: true, runValidators: true }
   ).select("-password -refreshToken");
 
@@ -479,7 +504,10 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
   // Delete the old cover image if it exists
   if (req.user.coverimage) {
     try {
-      await deleteFile(req.user.coverimage);
+      await deletePreviousUserImage(
+        req.user.coverimage,
+        DEFAULT_COVERIMAGE_PUBLIC_ID
+      );
     } catch (error) {
       console.error("Error deleting old cover image:", error);
     }
