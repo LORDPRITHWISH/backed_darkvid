@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
+import { Readable } from "stream";
 
 if (
   !process.env.CLOUDINARY_NAME ||
@@ -9,50 +9,71 @@ if (
   throw new Error("Cloudinary env not set properly");
 }
 
-const getCloudinaryConfig = () => ({
-  cloud_name: process.env.CLOUDINARY_NAME!,
-  api_key: process.env.CLOUDINARY_API_KEY!,
-  api_secret: process.env.CLOUDINARY_API_SECRET!,
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadFile = async (
-  localFilePath: string,
-  folder: string = "general"
-) => {
-  try {
-    if (!localFilePath || !fs.existsSync(localFilePath)) {
-      return null;
-    }
-
-    // Re-apply config before every upload to avoid credential loss between calls
-    cloudinary.config(getCloudinaryConfig());
-    console.log("CLOUDINARY CONFIG:", cloudinary.config());
-
-    const uploadResult = await cloudinary.uploader.upload(localFilePath, {
-      resource_type: "auto",
-      folder: `darkvid/uploads/${folder}`,
-    });
-    console.log(`file uploaded to cloudinary: ${uploadResult.secure_url}`);
-    return uploadResult;
-  } catch (error) {
-    console.log(error);
-    return null;
-    } finally {
-      if (localFilePath && fs.existsSync(localFilePath)) {
-        // fs.unlinkSync(localFilePath);
-        await fs.promises.unlink(localFilePath).catch(() => {});
-      }
-  }
+type UploadResult = {
+  secure_url: string;
+  public_id: string;
 };
 
-const deleteFile = async (publicId: string) => {
+export const uploadToCloudinary = (
+  fileBuffer: Buffer,
+  folder: string = "general"
+): Promise<UploadResult> => {
+  return new Promise((resolve, reject) => {
+    // Re-apply config before upload to ensure credentials are set
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `darkvid/uploads/${folder}`,
+        resource_type: "image", // 👈 force stability
+        use_filename: true,
+        unique_filename: true,
+        overwrite: false,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Cloudinary upload error:", error);
+          return reject(error);
+        }
+
+        if (!result) {
+          return reject(new Error("Upload failed: no result"));
+        }
+
+        resolve({
+          secure_url: result.secure_url,
+          public_id: result.public_id,
+        });
+      }
+    );
+
+    Readable.from(fileBuffer).pipe(stream);
+  });
+};
+
+export const deleteFromCloudinary = async (publicId: string) => {
   try {
-    cloudinary.config(getCloudinaryConfig());
-    const deleteResult = await cloudinary.uploader.destroy(publicId);
-    console.log("cloudinary deleted", deleteResult);
-    return deleteResult;
-  } catch (error) {
-    console.log("Dark:error deleting from cloudinary", error);
+    // Re-apply config before delete to ensure credentials are set
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+    return await cloudinary.uploader.destroy(publicId);
+  } catch (err) {
+    console.error("Delete failed:", err);
     return null;
   }
 };
@@ -70,4 +91,5 @@ const getCloudinaryPublicId = (assetUrl: string) => {
   return withoutVersion.replace(/\.[^/.]+$/, "");
 };
 
-export { uploadFile, deleteFile, getCloudinaryPublicId };
+export { getCloudinaryPublicId };
+export default cloudinary;

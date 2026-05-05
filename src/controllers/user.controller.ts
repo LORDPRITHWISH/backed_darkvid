@@ -4,43 +4,39 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponce } from "../utils/ApiResponce";
 import { asyncHandeler } from "../utils/asyncHandelers";
 import {
-  deleteFile,
-  uploadFile,
+  deleteFromCloudinary,
+  getCloudinaryPublicId,
+  uploadToCloudinary,
 } from "../utils/cloudinay";
 import jwt from "jsonwebtoken";
 import { UAParser } from "ua-parser-js";
 import { Session } from "../models/sesson.models";
 
-// const DEFAULT_PROFILEPIC_PUBLIC_ID = "e5tmjgygwh8zffoibujr";
-// const DEFAULT_COVERIMAGE_PUBLIC_ID = "n3rwe2rqx2dqnvhffc3d";
+const DEFAULT_PROFILEPIC_PUBLIC_ID = "e5tmjgygwh8zffoibujr";
+const DEFAULT_COVERIMAGE_PUBLIC_ID = "n3rwe2rqx2dqnvhffc3d";
 
-// const deletePreviousUserImage = async (
-//   assetUrl: string | undefined,
-//   defaultPublicId: string
-// ) => {
-//   if (!assetUrl) return;
+const deletePreviousUserImage = async (
+  assetUrl: string | undefined,
+  defaultPublicId: string
+) => {
+  if (!assetUrl) return;
 
-//   const publicId = getCloudinaryPublicId(assetUrl);
+  const publicId = getCloudinaryPublicId(assetUrl);
 
-//   if (publicId === defaultPublicId) return;
-//   if (assetUrl.startsWith("http") && publicId === assetUrl) return;
+  if (publicId === defaultPublicId) return;
+  if (assetUrl.startsWith("http") && publicId === assetUrl) return;
 
-//   await deleteFile(publicId);
-// };
+  await deleteFromCloudinary(publicId);
+};
 
 export const genetateAccessAnsRefreshToken = async (userId: string) => {
   try {
     const user = await User.findById(userId).select("-password -refreshToken");
-    // console.log(user);
     if (!user) {
       throw new ApiError(500, "User not found");
     }
-    // console.log("user found for token generation", user);
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-
-    // console.log("accessToken", accessToken);
-    // console.log("refreshToken", refreshToken);
 
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
@@ -55,11 +51,7 @@ export const genetateAccessAnsRefreshToken = async (userId: string) => {
 };
 
 const registerUser = asyncHandeler(async (req, res) => {
-  console.log("FILES RECEIVED:", req.files);
-
   const { fullname, email, username, password } = req.body;
-
-  console.log("the Body", req.body);
 
   if (
     [fullname, email, username, password].some(
@@ -76,36 +68,32 @@ const registerUser = asyncHandeler(async (req, res) => {
     throw new ApiError(409, "User already exists");
   }
 
-  const profilepiclocal = (
+  const profilepicBuffer = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
-  )?.profilepic?.[0]?.path;
+  )?.profilepic?.[0]?.buffer;
 
-  const coverimagelocal = (
+  const coverimageBuffer = (
     req.files as { [fieldname: string]: Express.Multer.File[] }
-  )?.coverimage?.[0]?.path;
-
-  console.log("profilepiclocal", profilepiclocal);
-  console.log("coverimagelocal", coverimagelocal);
+  )?.coverimage?.[0]?.buffer;
 
   let profilepiccl;
   let coverimagecl;
 
   try {
-    if (coverimagelocal) coverimagecl = await uploadFile(coverimagelocal, "channelcover");
-    console.log("coverimage uploaded", coverimagecl);
+    if (coverimageBuffer)
+      coverimagecl = await uploadToCloudinary(coverimageBuffer, "channelcover");
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Cover pic not uploaded");
   }
 
   try {
-    if (profilepiclocal) profilepiccl = await uploadFile(profilepiclocal,"profilepic");
-    console.log("profilepic uploaded", profilepiccl);
+    if (profilepicBuffer)
+      profilepiccl = await uploadToCloudinary(profilepicBuffer, "profilepic");
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Profile pic not uploaded");
   }
-
 
   try {
     const user = await User.create({
@@ -113,15 +101,13 @@ const registerUser = asyncHandeler(async (req, res) => {
       email,
       password,
       name: fullname,
-      profilepic: profilepiccl?.url,
-      coverimage: coverimagecl?.url,
+      profilepic: profilepiccl?.secure_url,
+      coverimage: coverimagecl?.secure_url,
     });
 
     const createdUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
-    console.log(createdUser);
-
     if (!createdUser) {
       throw new ApiError(500, "User not created");
     }
@@ -131,10 +117,10 @@ const registerUser = asyncHandeler(async (req, res) => {
       .json(new ApiResponce(201, "User created", createdUser));
   } catch (error) {
     if (profilepiccl) {
-      await deleteFile(profilepiccl.public_id);
+      await deleteFromCloudinary(profilepiccl.public_id);
     }
     if (coverimagecl) {
-      await deleteFile(coverimagecl.public_id);
+      await deleteFromCloudinary(coverimagecl.public_id);
     }
     throw new ApiError(500, "User not created so no point keeping the images");
   }
@@ -142,11 +128,7 @@ const registerUser = asyncHandeler(async (req, res) => {
 });
 
 const loginUser = asyncHandeler(async (req, res) => {
-  // console.log("\nlogin user called");
-  // console.log("body :-", req.body);
   const { identity, password } = req.body;
-
-  // console.log("body :-", req);
 
   if (password && password.trim() === "") {
     throw new ApiError(400, "Password is required");
@@ -156,8 +138,6 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(400, "Email or username is required");
   }
 
-  // console.log("provided user", email, username, password);
-
   const user = await User.findOne({
     $or: [{ email: identity }, { username: identity }],
   });
@@ -166,17 +146,11 @@ const loginUser = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  // console.log("user :- ", user);
-
   if (!user.password) {
     throw new ApiError(400, "No password set. Use Google login.");
   }
 
-  // console.log("user found", user);
-
   const isPasswordValid = await user.isPasswordCorrect(password);
-
-  // console.log("isPasswordValid", isPasswordValid);
 
   if (!isPasswordValid) {
     throw new ApiError(401, "Incorrect user Credentials");
@@ -207,8 +181,6 @@ const loginUser = asyncHandeler(async (req, res) => {
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
-
-  // console.log("loggedInUser", loggedInUser);
 
   const options = {
     httpOnly: true,
@@ -241,7 +213,8 @@ const logoutUser = asyncHandeler(async (req, res) => {
     { new: true }
   );
 
-  const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+  const incomingRefreshToken =
+    req.cookies?.refreshToken || req.body?.refreshToken;
   if (incomingRefreshToken) {
     await Session.findOneAndUpdate(
       { user: req.user._id, refreshToken: incomingRefreshToken },
@@ -416,23 +389,15 @@ const updateDetails = asyncHandeler(async (req, res) => {
 });
 
 const updateAvator = asyncHandeler(async (req, res) => {
-  // const profilepiclocal = (
-  //   req.files as { [fieldname: string]: Express.Multer.File[] }
-  // )?.profilepic?.[0]?.path;
+  const profilepicBuffer = req.file?.buffer;
 
-  const profilepiclocal = req.file?.path;
-
-  console.log("profilepic file", req.file);
-  console.log("profilepic path", profilepiclocal);
-
-  if (!profilepiclocal) {
+  if (!profilepicBuffer) {
     throw new ApiError(400, "Profile picture is required");
   }
 
   let profilepiccl;
   try {
-    profilepiccl = await uploadFile(profilepiclocal, "profilepic");
-    console.log("profilepic uploaded", profilepiccl);
+    profilepiccl = await uploadToCloudinary(profilepicBuffer, "profilepic");
   } catch (error) {
     console.log(error);
     throw new ApiError(500, "Profile pic not uploaded");
@@ -452,19 +417,17 @@ const updateAvator = asyncHandeler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  console.log("sucess")
-
   // Delete the old profile picture if it exists
-  // if (req.user.profilepic) {
-  //   try {
-  //     await deletePreviousUserImage(
-  //       req.user.profilepic,
-  //       DEFAULT_PROFILEPIC_PUBLIC_ID
-  //     );
-  //   } catch (error) {
-  //     console.error("Error deleting old profile picture:", error);
-  //   }
-  // }
+  if (req.user.profilepic) {
+    try {
+      await deletePreviousUserImage(
+        req.user.profilepic,
+        DEFAULT_PROFILEPIC_PUBLIC_ID
+      );
+    } catch (error) {
+      console.error("Error deleting old profile picture:", error);
+    }
+  }
 
   return res
     .status(200)
@@ -472,15 +435,15 @@ const updateAvator = asyncHandeler(async (req, res) => {
 });
 
 const changeCoverImage = asyncHandeler(async (req, res) => {
-  const coverimagelocal = req.file?.path;
+  const coverimageBuffer = req.file?.buffer;
 
-  if (!coverimagelocal) {
+  if (!coverimageBuffer) {
     throw new ApiError(400, "Cover image is required");
   }
 
   let coverimagecl;
   try {
-    coverimagecl = await uploadFile(coverimagelocal, "coverimage");
+    coverimagecl = await uploadToCloudinary(coverimageBuffer, "coverimage");
     console.log("coverimage uploaded", coverimagecl);
   } catch (error) {
     console.log(error);
@@ -502,16 +465,16 @@ const changeCoverImage = asyncHandeler(async (req, res) => {
   }
 
   // Delete the old cover image if it exists
-  if (req.user.coverimage) {
-    try {
-      await deletePreviousUserImage(
-        req.user.coverimage,
-        DEFAULT_COVERIMAGE_PUBLIC_ID
-      );
-    } catch (error) {
-      console.error("Error deleting old cover image:", error);
-    }
-  }
+  // if (req.user.coverimage) {
+  //   try {
+  //     await deletePreviousUserImage(
+  //       req.user.coverimage,
+  //       DEFAULT_COVERIMAGE_PUBLIC_ID
+  //     );
+  //   } catch (error) {
+  //     console.error("Error deleting old cover image:", error);
+  //   }
+  // }
 
   return res
     .status(200)
